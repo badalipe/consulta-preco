@@ -8,6 +8,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -18,14 +19,10 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 
-/**
- * Scanner de código de barras com ML Kit (Google).
- * Ao ler um código válido, envia para a SistemaActivity que consulta o preço.
- */
 class ScannerActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
-    private var leuCodigo = false   // trava para não ler o mesmo código 2x
+    private var leuCodigo = false
     private val executor = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,7 +49,7 @@ class ScannerActivity : AppCompatActivity() {
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener({
             val provider = providerFuture.get()
-                        val preview = Preview.Builder().build()
+            val preview = Preview.Builder().build()
             preview.setSurfaceProvider(previewView.surfaceProvider)
 
             val analise = ImageAnalysis.Builder()
@@ -70,20 +67,20 @@ class ScannerActivity : AppCompatActivity() {
     private inner class LeitorCodigo : ImageAnalysis.Analyzer {
         private val scanner = BarcodeScanning.getClient()
 
-        override fun analyze(imageProxy: androidx.camera.core.ImageProxy) {
+        override fun analyze(imageProxy: ImageProxy) {
             if (leuCodigo) { imageProxy.close(); return }
             val media = imageProxy.image ?: run { imageProxy.close(); return }
             val input = InputImage.fromMediaImage(
                 media, imageProxy.imageInfo.rotationDegrees
             )
             scanner.process(input)
-                                        codigos.firstOrNull { it.format == Barcode.FORMAT_EAN_13
-                                || it.format == Barcode.FORMAT_EAN_8
-                                || it.format == Barcode.FORMAT_UPC_A
-                                || it.format == Barcode.FORMAT_UPC_E
-                                || it.format == Barcode.FORMAT_CODE_128
-                                || it.format == Barcode.FORMAT_CODE_39 }
-
+                .addOnSuccessListener { codigos ->
+                    codigos.firstOrNull { it.format == Barcode.FORMAT_EAN_13
+                            || it.format == Barcode.FORMAT_EAN_8
+                            || it.format == Barcode.FORMAT_UPC_A
+                            || it.format == Barcode.FORMAT_UPC_E
+                            || it.format == Barcode.FORMAT_CODE_128
+                            || it.format == Barcode.FORMAT_CODE_39 }
                         ?.rawValue?.let { codigo -> onCodigoLido(codigo) }
                 }
                 .addOnCompleteListener { imageProxy.close() }
@@ -99,7 +96,6 @@ class ScannerActivity : AppCompatActivity() {
                     .putExtra(SistemaActivity.EXTRA_CODIGO, codigo)
                     .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             )
-            // volta a ler ao retornar (novo scan = nova consulta)
             leuCodigo = false
         }
     }
