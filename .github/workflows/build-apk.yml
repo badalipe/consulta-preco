@@ -24,10 +24,12 @@ jobs:
 
       - name: Reorganizar arquivos
         run: |
-          mkdir -p app/src/main/java/com/quickprice/app
+          mkdir -p app/src/main/java/com/quickprice/app app/src/main/res/values
           [ -f app-build.gradle ] && mv app-build.gradle app/build.gradle
           for f in *.kt; do [ -f "$f" ] && mv "$f" app/src/main/java/com/quickprice/app/; done
           [ -f AndroidManifest.xml ] && mv AndroidManifest.xml app/src/main/
+          [ -f strings.xml ] && mv strings.xml app/src/main/res/values/
+          [ -f themes.xml ] && mv themes.xml app/src/main/res/values/
           echo "--- estrutura final ---"
           find . -type f -not -path "./.git/*" | sort
 
