@@ -1,4 +1,3 @@
-
 name: Build APK
 
 on:
@@ -11,19 +10,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: android-actions/setup-android@v3
-
-      - name: Instalar SDK
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
-
-      - name: Reorganizar arquivos (upload tudo-junto pelo celular)
+      - name: Instalar Android SDK
         run: |
-          mkdir -p app/src/main/java/com/quickprice/app app/src/main/res/layout app/src/main/res/values
+          apt-get update -qq && apt-get install -y -qq unzip curl
+          mkdir -p /opt/android-sdk/cmdline-tools
+          curl -sSL -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk/cmdline-tools
+          mv /opt/android-sdk/cmdline-tools/cmdline-tools /opt/android-sdk/cmdline-tools/latest
+          echo "ANDROID_HOME=/opt/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=/opt/android-sdk" >> $GITHUB_ENV
+          yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk --licenses > /dev/null || true
+          /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Reorganizar arquivos
+        run: |
+          mkdir -p app/src/main/java/com/quickprice/app
           [ -f app-build.gradle ] && mv app-build.gradle app/build.gradle
           for f in *.kt; do [ -f "$f" ] && mv "$f" app/src/main/java/com/quickprice/app/; done
-          for f in activity_*.xml; do [ -f "$f" ] && mv "$f" app/src/main/res/layout/; done
-          [ -f strings.xml ] && mv strings.xml app/src/main/res/values/
-          [ -f themes.xml ] && mv themes.xml app/src/main/res/values/
           [ -f AndroidManifest.xml ] && mv AndroidManifest.xml app/src/main/
           echo "--- estrutura final ---"
           find . -type f -not -path "./.git/*" | sort
