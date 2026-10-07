@@ -52,8 +52,8 @@ class ScannerActivity : AppCompatActivity() {
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener({
             val provider = providerFuture.get()
-            val preview = Preview.Builder().build()
-                .also { it.surfaceProvider = previewView.surfaceProvider }
+                        val preview = Preview.Builder().build()
+            preview.setSurfaceProvider(previewView.surfaceProvider)
 
             val analise = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
