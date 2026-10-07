@@ -30,14 +30,37 @@ jobs:
           [ -f AndroidManifest.xml ] && mv AndroidManifest.xml app/src/main/
           [ -f strings.xml ] && mv strings.xml app/src/main/res/values/
           [ -f themes.xml ] && mv themes.xml app/src/main/res/values/
-          echo "--- estrutura final ---"
-          find . -type f -not -path "./.git/*" | sort
+
+      - name: Diagnostico profundo
+        run: |
+          echo "===== app/build.gradle ====="
+          cat app/build.gradle
+          echo "===== deps camera/mlkit no classpath ====="
+          gradle :app:dependencies --configuration debugCompileClasspath --no-daemon > /tmp/deps.txt 2>&1 || true
+          grep -Ei "camera|mlkit|barcode" /tmp/deps.txt || echo ">>> NADA NO CLASSPATH <<<"
+          echo "===== Abrindo a biblioteca ML Kit ====="
+          AAR=$(find / -name "barcode-scanning-*.aar" 2>/dev/null | head -1)
+          echo "AAR encontrado: $AAR"
+          if [ -n "$AAR" ]; then
+            unzip -p "$AAR" classes.jar > /tmp/bc.jar 2>/dev/null
+            javap -classpath /tmp/bc.jar com.google.mlkit.vision.barcode.common.Barcode 2>&1 | grep -E "TYPE_|getValueType" | head -12
+          fi
+          echo "===== Abrindo o camera-core ====="
+          CAAR=$(find / -name "camera-core-*.aar" 2>/dev/null | head -1)
+          echo "AAR: $CAAR"
+          if [ -n "$CAAR" ]; then
+            unzip -p "$CAAR" classes.jar > /tmp/cc.jar 2>/dev/null
+            javap -classpath /tmp/cc.jar androidx.camera.core.Preview 2>&1 | grep -E "SurfaceProvider" | head
+          fi
 
       - name: Compilar APK
         run: gradle assembleDebug --no-daemon
 
-      - name: Enviar APK
+      - name: Enviar resultado
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: consulta-preco-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: resultado
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            /tmp/deps.txt
