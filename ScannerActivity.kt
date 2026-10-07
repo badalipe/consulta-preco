@@ -77,13 +77,13 @@ class ScannerActivity : AppCompatActivity() {
                 media, imageProxy.imageInfo.rotationDegrees
             )
             scanner.process(input)
-                .addOnSuccessListener { codigos ->
-                    codigos.firstOrNull { it.valueType == Barcode.TYPE_EAN_13
-                            || it.valueType == Barcode.TYPE_EAN_8
-                            || it.valueType == Barcode.TYPE_UPC_A
-                            || it.valueType == Barcode.TYPE_UPC_E
-                            || it.valueType == Barcode.TYPE_CODE_128
-                            || it.valueType == Barcode.TYPE_CODE_39 }
+                                        codigos.firstOrNull { it.format == Barcode.FORMAT_EAN_13
+                                || it.format == Barcode.FORMAT_EAN_8
+                                || it.format == Barcode.FORMAT_UPC_A
+                                || it.format == Barcode.FORMAT_UPC_E
+                                || it.format == Barcode.FORMAT_CODE_128
+                                || it.format == Barcode.FORMAT_CODE_39 }
+
                         ?.rawValue?.let { codigo -> onCodigoLido(codigo) }
                 }
                 .addOnCompleteListener { imageProxy.close() }
