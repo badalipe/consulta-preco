@@ -43,8 +43,8 @@ class ResultadoActivity : AppCompatActivity() {
         }
 
         // Toque em qualquer lugar → escanear de novo
-        findViewById<android.view.View>(R.id.btnNovoScan).setOnClickListener { voltarAoScanner() }
-        findViewById<android.view.View>(R.id.root).setOnClickListener { voltarAoScanner() }
+                findViewById<com.google.android.material.button.MaterialButton>(R.id.btnScan)
+            .setOnClickListener { voltarAoScanner() }
 
         // Volta sozinho pro scanner após 20s (fluxo contínuo de consulta)
         handler.postDelayed({ voltarAoScanner() }, 20_000)
