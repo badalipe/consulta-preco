@@ -9,12 +9,23 @@ import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
+import org.json.JSONObject
 
+/**
+ * Motor do app (WebView invisivel - roda em background).
+ *
+ * Fluxo:
+ * 1. Abre a pagina de consulta
+ * 2. Se nao estiver logado, tenta logar automaticamente
+ * 3. Injeta o codigo de barras no campo de busca
+ * 4. Extrai nome, preco, foto e infos do resultado
+ * 5. Envia para ResultadoActivity
+ */
 class SistemaActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_CODIGO = "codigo_barras"
-        private const val INTERVALO_CHECK = 30_000L   // 30s (era 20s)
+        private const val INTERVALO_CHECK = 30_000L
         private const val CAMPO_BUSCA = "#btnBusca"
         private const val BTN_PESQUISAR = "#pesq_prod"
         private const val JS_TEM_CAMPO = "(document.getElementById('btnBusca') !== null)"
@@ -28,7 +39,7 @@ class SistemaActivity : AppCompatActivity() {
     private var paginaPronta = false
     private var codigoAtual: String? = null
     private var coletando = false
-    private var falhasConsecutivas = 0  // NOVO: conta falhas antes de agir
+    private var falhasConsecutivas = 0
 
     private val watchdog = object : Runnable {
         override fun run() {
@@ -44,7 +55,7 @@ class SistemaActivity : AppCompatActivity() {
         cfg = SessionConfig.load(this) ?: run { finish(); return }
 
         webView = findViewById(R.id.webView)
-        webView.visibility = View.GONE  // MODO INVISÍVEL (funciona em background)
+        webView.visibility = View.GONE  // Invisivel - roda em background
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         
@@ -52,12 +63,11 @@ class SistemaActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 paginaPronta = true
-                falhasConsecutivas = 0  // Reseta contador quando carrega com sucesso
+                falhasConsecutivas = 0
                 handler.postDelayed({ cuidarDaPagina(clicarLink = true) }, 1200)
             }
             
             override fun onReceivedError(view: WebView, code: Int, desc: String, url: String) {
-                // Só conta como falha se for erro real de rede
                 falhasConsecutivas++
             }
         }
@@ -79,7 +89,7 @@ class SistemaActivity : AppCompatActivity() {
         
         webView.evaluateJavascript(JS_TEM_CAMPO) { tem ->
             if (tem?.trim() == "true") {
-                // Estamos na página de consulta
+                // Estamos na pagina de consulta
                 falhasConsecutivas = 0
                 if (codigoAtual != null) {
                     aplicarCodigoBarras(codigoAtual)
@@ -87,7 +97,7 @@ class SistemaActivity : AppCompatActivity() {
                 return@evaluateJavascript
             }
             
-            // Não tem campo de busca - verificar se tem link pro unitario
+            // Nao tem campo de busca - procurar link pro unitario
             webView.evaluateJavascript(JS_TEM_LINK_UNITARIO) { href ->
                 val link = href?.removeSurrounding("\"").orEmpty()
                 if (link.isNotEmpty() && link != "null" && clicarLink) {
@@ -95,7 +105,7 @@ class SistemaActivity : AppCompatActivity() {
                     return@evaluateJavascript
                 }
                 
-                // Se não achou link e não está logado, tenta login
+                // Se nao achou link, tentar login
                 tentarLoginAutomatico()
             }
         }
@@ -104,10 +114,10 @@ class SistemaActivity : AppCompatActivity() {
     private fun verificarSessao() {
         if (!paginaPronta) return
         
-        // Só tenta reconectar se falhou 3 vezes seguidas (evita loop)
+        // So reconecta se falhou 3 vezes seguidas
         if (falhasConsecutivas >= 3) {
             falhasConsecutivas = 0
-            webView.loadUrl(cfg.url)  // Recarrega a página
+            webView.loadUrl(cfg.url)
         }
     }
 
@@ -189,18 +199,21 @@ class SistemaActivity : AppCompatActivity() {
             val limpo = r?.removeSurrounding("\"")?.replace("\\\"", "\"")?.replace("\\n", "\n").orEmpty()
             
             if (limpo.isEmpty() || limpo == "null") { 
-                repetirColeta(codigo, tentativa); return@evaluateJavascript 
+                repetirColeta(codigo, tentativa)
+                return@evaluateJavascript 
             }
             
             try {
                 val obj = JSONObject(limpo)
                 if (obj.optBoolean("carregando") || obj.has("erro")) {
-                    repetirColeta(codigo, tentativa); return@evaluateJavascript
+                    repetirColeta(codigo, tentativa)
+                    return@evaluateJavascript
                 }
                 
                 val texto = obj.optString("texto").trim()
                 if (texto.length < 2) {
-                    mostrarResultado("Produto nao encontrado", "-", codigo); return@evaluateJavascript
+                    mostrarResultado("Produto nao encontrado", "-", codigo)
+                    return@evaluateJavascript
                 }
                 
                 val linhas = texto.split("\n").map { it.trim() }.filter { it.isNotBlank() }
@@ -232,8 +245,9 @@ class SistemaActivity : AppCompatActivity() {
     }
 
     private fun repetirColeta(codigo: String, tentativa: Int) {
-        if (tentativa >= 10) {  // Reduzido de 16 pra 10 (5 segundos)
-            mostrarResultado("Produto nao encontrado", "-", codigo); return 
+        if (tentativa >= 10) {
+            mostrarResultado("Produto nao encontrado", "-", codigo)
+            return 
         }
         handler.postDelayed({ iniciarColeta(codigo, tentativa + 1) }, 500)
     }
@@ -254,7 +268,7 @@ class SistemaActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() { 
-        super.onDestroy(); 
+        super.onDestroy()
         handler.removeCallbacks(watchdog) 
     }
 
