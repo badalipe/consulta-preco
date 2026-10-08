@@ -5,8 +5,10 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * Ponto de entrada. Se o app abriu via link, salva as credenciais e já
- * cai direto no scanner. Se abriu normal, usa a sessão salva.
+ * Ponto de entrada do app.
+ * 1) Abriu por link com credenciais -> salva e vai ao scanner
+ * 2) Ja tem sessao salva -> vai direto ao scanner
+ * 3) Nada disso -> usa o login padrao da loja (embutido no app)
  */
 class MainActivity : AppCompatActivity() {
 
@@ -14,20 +16,33 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // 1) Link com credenciais → salva e segue
+        // 1) Veio por link com credenciais
         SessionConfig.fromIntent(intent)?.let { cfg ->
             SessionConfig.save(this, cfg)
             abrirScanner()
             return
         }
-        // 2) Sem link: se já tem sessão salva, vai direto pro scanner
+
+        // 2) Ja tem login salvo
         if (SessionConfig.load(this) != null) {
             abrirScanner()
+            return
         }
-        // 3) Sem nada: fica na tela inicial aguardando o link
+
+        // 3) Login padrao da loja embutido
+        SessionConfig.save(
+            this,
+            SessionConfig(
+                url = "https://rmarket.cartazfacil.pro/unitario.php",
+                usuario = "rmarket07",
+                senha = "sup12345",
+                forcarReconexao = true
+            )
+        )
+        abrirScanner()
     }
 
-    override fun onNewIntent(intent: android.content.Intent) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         SessionConfig.fromIntent(intent)?.let { cfg ->
             SessionConfig.save(this, cfg)
