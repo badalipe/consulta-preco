@@ -53,7 +53,8 @@ class SistemaActivity : AppCompatActivity() {
         cfg = SessionConfig.load(this) ?: run { finish(); return }
 
         webView = findViewById(R.id.webView)
-        webView.visibility = View.GONE          // motor invisível
+                webView.visibility = View.VISIBLE       // MODO TESTE
+          // motor invisível
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.webViewClient = object : WebViewClient() {
