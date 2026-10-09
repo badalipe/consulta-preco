@@ -1,7 +1,14 @@
 package com.quickprice.app
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.renderscript.Allocation
+import android.renderscript.Element
+import android.renderscript.RenderScript
+import android.renderscript.ScriptIntrinsicBlur
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
@@ -9,6 +16,9 @@ import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 
 class ResultadoActivity : AppCompatActivity() {
 
@@ -19,20 +29,16 @@ class ResultadoActivity : AppCompatActivity() {
 
         val codigo = intent.getStringExtra("codigo") ?: ""
 
-        // Preenche código
         findViewById<TextView>(R.id.txtCodigo).text = codigo
 
-        // Botão voltar
         findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
             finish()
         }
 
-        // Botão escanear
         findViewById<Button>(R.id.btnScan).setOnClickListener {
             finish()
         }
 
-        // Busca manual
         val edt = findViewById<EditText>(R.id.edtCodigo)
         edt.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
@@ -41,8 +47,72 @@ class ResultadoActivity : AppCompatActivity() {
             } else false
         }
 
-        // Busca o produto no servidor LOCAL
         buscar(codigo)
+
+        // Tenta carregar imagem do produto (Open Food Facts) para o fundo Netflix
+        carregarImagemFundo(codigo)
+    }
+
+    private fun carregarImagemFundo(codigo: String) {
+        if (codigo.isEmpty()) return
+
+        // Busca imagem no Open Food Facts
+        Thread {
+            try {
+                val url = java.net.URL("https://world.openfoodfacts.org/api/v2/product/$codigo.json")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 5000
+                val json = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
+
+                if (json.optInt("status", 0) == 1) {
+                    val prod = json.optJSONObject("product")
+                    val foto = prod?.optString("image_front_url").orEmpty()
+
+                    if (foto.isNotEmpty() && foto.startsWith("http")) {
+                        runOnUiThread {
+                            // Carrega imagem principal
+                            Glide.with(this)
+                                .load(foto)
+                                .into(findViewById<ImageView>(R.id.imgProduto))
+                            findViewById<ImageView>(R.id.imgProduto).visibility = android.view.View.VISIBLE
+
+                            // Carrega imagem de fundo com blur (efeito Netflix)
+                            Glide.with(this)
+                                .asBitmap()
+                                .load(foto)
+                                .into(object : CustomTarget<Bitmap>() {
+                                    override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                                        val blurred = blurBitmap(resource, 25f) // Blur forte
+                                        findViewById<ImageView>(R.id.imgFundo).setImageBitmap(blurred)
+                                        findViewById<ImageView>(R.id.imgFundo).visibility = android.view.View.VISIBLE
+                                    }
+                                    override fun onLoadCleared(placeholder: Drawable?) {}
+                                })
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Sem imagem, segue sem fundo
+            }
+        }.start()
+    }
+
+    // Função para desfocar a imagem (blur)
+    private fun blurBitmap(bitmap: Bitmap, radius: Float): Bitmap {
+        val width = Math.round(bitmap.width * 0.5f)
+        val height = Math.round(bitmap.height * 0.5f)
+        val inputBitmap = Bitmap.createScaledBitmap(bitmap, width, height, false)
+        val outputBitmap = Bitmap.createBitmap(inputBitmap)
+
+        val rs = RenderScript.create(this)
+        val theIntrinsic = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs))
+        val tmpIn = Allocation.createFromBitmap(rs, inputBitmap)
+        val tmpOut = Allocation.createFromBitmap(rs, outputBitmap)
+        theIntrinsic.setRadius(radius)
+        theIntrinsic.forEach(tmpOut)
+        tmpOut.copyTo(outputBitmap)
+
+        return outputBitmap
     }
 
     private fun buscar(codigo: String) {
@@ -51,7 +121,6 @@ class ResultadoActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
         findViewById<TextView>(R.id.txtPreco).text = "..."
 
-        // WebView invisível - conecta no servidor LOCAL (igual ao equipamento)
         val webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
@@ -97,7 +166,6 @@ class ResultadoActivity : AppCompatActivity() {
             }
         }
 
-        // SERVIDOR LOCAL (igual ao equipamento Sweda)
         webView.loadUrl("http://10.10.56.103/unitario.php")
     }
 
