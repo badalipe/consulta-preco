@@ -27,5 +27,6 @@
         <activity android:name=".SistemaActivity" android:exported="false" />
         <activity android:name=".ResultadoActivity" android:exported="false" />
         <activity android:name=".ScannerActivity" android:exported="false" />
+        <activity android:name=".ZXingScannerActivity" android:exported="false" />
     </application>
 </manifest>
