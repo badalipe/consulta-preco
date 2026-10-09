@@ -19,10 +19,6 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 
-/**
- * Scanner de código de barras usando Google ML Kit + CameraX.
- * Análise contínua de frames para leitura instantânea.
- */
 class ScannerActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
@@ -58,12 +54,9 @@ class ScannerActivity : AppCompatActivity() {
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener({
             val provider = providerFuture.get()
-
-            // Preview da câmera
             val preview = Preview.Builder().build()
             preview.setSurfaceProvider(previewView.surfaceProvider)
 
-            // Análise de frames com ML Kit
             val imageAnalysis = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setTargetRotation(previewView.display.rotation)
@@ -111,8 +104,7 @@ class ScannerActivity : AppCompatActivity() {
                         Barcode.FORMAT_UPC_A,
                         Barcode.FORMAT_UPC_E,
                         Barcode.FORMAT_CODE_128,
-                        Barcode.FORMAT_CODE_39,
-                        Barcode.FORMAT_QR_CODE -> {
+                        Barcode.FORMAT_CODE_39 -> {
                             barcode.rawValue?.let { codigo ->
                                 if (!leuCodigo) {
                                     leuCodigo = true
@@ -123,9 +115,7 @@ class ScannerActivity : AppCompatActivity() {
                     }
                 }
             }
-            .addOnFailureListener {
-                // Falha silenciosa - continua tentando
-            }
+            .addOnFailureListener { }
             .addOnCompleteListener {
                 imageProxy.close()
             }
@@ -133,26 +123,21 @@ class ScannerActivity : AppCompatActivity() {
 
     private fun onCodigoLido(codigo: String) {
         runOnUiThread {
-            // Bipe de confirmação
+            // Bipe
             try {
                 val toneGen = android.media.ToneGenerator(
-                    android.media.AudioManager.STREAM_NOTIFICATION,
-                    100
+                    android.media.AudioManager.STREAM_NOTIFICATION, 100
                 )
                 toneGen.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 200)
             } catch (e: Exception) { }
 
-            // Vai para tela de resultado
-            val intent = Intent(this, SistemaActivity::class.java).apply {
-                putExtra(SistemaActivity.EXTRA_CODIGO, codigo)
+            // Vai para ResultadoActivity (que busca o preço sozinha)
+            val intent = Intent(this, ResultadoActivity::class.java).apply {
+                putExtra(ResultadoActivity.EXTRA_CODIGO, codigo)
                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             startActivity(intent)
-
-            // Reseta para permitir novo scan quando voltar
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                leuCodigo = false
-            }, 2000)
+            finish()
         }
     }
 
