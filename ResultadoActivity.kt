@@ -14,41 +14,47 @@ class ResultadoActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val codigo = intent.getStringExtra("codigo") ?: "Não lido"
+        val codigo = intent.getStringExtra("codigo") ?: ""
 
-        // Layout simples
+        // Layout igual ao equipamento: Nome grande em cima, Preço gigante embaixo
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(50, 100, 50, 50)
+            setBackgroundColor(0xFF000000.toInt()) // Fundo preto
+            setPadding(40, 100, 40, 100)
         }
 
-        val textStatus = TextView(this).apply {
-            text = "Código: $codigo\n\nBuscando preço..."
-            textSize = 20f
-        }
-
-        val textResultado = TextView(this).apply {
+        val txtNome = TextView(this).apply {
+            text = "Buscando..."
             textSize = 32f
+            setTextColor(0xFFFFFFFF.toInt()) // Branco
+            setPadding(0, 0, 0, 50)
+        }
+
+        val txtPreco = TextView(this).apply {
+            text = ""
+            textSize = 80f
+            setTextColor(0xFF00FF00.toInt()) // Verde
             setPadding(0, 50, 0, 0)
         }
 
-        layout.addView(textStatus)
-        layout.addView(textResultado)
+        layout.addView(txtNome)
+        layout.addView(txtPreco)
         setContentView(layout)
 
-        // WebView invisível para buscar preço
+        // WebView invisível para buscar no servidor (igual ao equipamento)
         val webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
-                // Tenta injetar o código
+                // Injeta o código igual ao equipamento faz
                 val js = """
                     (function() {
                         var campo = document.querySelector('#btnBusca');
                         if (campo) {
                             campo.value = '$codigo';
+                            campo.dispatchEvent(new Event('input', {bubbles:true}));
                             if (window.jQuery) {
                                 jQuery('#pesq_prod').click();
                             }
@@ -56,14 +62,44 @@ class ResultadoActivity : AppCompatActivity() {
                     })();
                 """.trimIndent()
                 webView.evaluateJavascript(js, null)
-            }
 
-            override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
-                // NÃO VOLTA PARA O SCANNER - mostra erro aqui mesmo
-                runOnUiThread {
-                    textStatus.text = "Código: $codigo"
-                    textResultado.text = "⚠️ Erro de conexão\n\nVerifique:\n• WiFi/Data ligado\n• Google Play Services atualizado\n\nToque em VOLTAR e tente novamente"
-                }
+                // Aguarda 2 segundos e lê o resultado
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    webView.evaluateJavascript("""
+                        (function() {
+                            var ret = document.getElementById('retorno');
+                            if (ret && ret.innerText.trim().length > 3) {
+                                return ret.innerText;
+                            }
+                            return '';
+                        })();
+                    """.trimIndent()) { resultado ->
+                        if (!resultado.isNullOrBlank() && resultado != "null") {
+                            val texto = resultado.removeSurrounding("\"")
+                            val linhas = texto.split("\n")
+                            var nome = ""
+                            var preco = ""
+
+                            for (linha in linhas) {
+                                if (linha.contains("R$") || Regex("\\d+,\\d{2}").containsMatchIn(linha)) {
+                                    preco = linha.trim()
+                                } else if (linha.trim().length > 3 && nome.isEmpty()) {
+                                    nome = linha.trim()
+                                }
+                            }
+
+                            runOnUiThread {
+                                txtNome.text = nome.ifEmpty { "Produto" }
+                                txtPreco.text = preco.ifEmpty { "R$ -" }
+                            }
+                        } else {
+                            runOnUiThread {
+                                txtNome.text = "Produto não encontrado"
+                                txtPreco.text = ""
+                            }
+                        }
+                    }
+                }, 2000)
             }
         }
 
@@ -71,7 +107,6 @@ class ResultadoActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        // Volta para o scanner manualmente (só quando o usuário pedir)
         super.onBackPressed()
         finish()
     }
