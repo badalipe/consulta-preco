@@ -19,16 +19,15 @@ class ScannerActivity : AppCompatActivity() {
                 tg.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 200)
             } catch (e: Exception) { }
 
-            // Vai para resultado
+            // Vai para resultado - NÃO VOLTA AUTOMATICAMENTE
             val intent = Intent(this, ResultadoActivity::class.java).apply {
                 putExtra("codigo", result.contents)
+                // Importante: NÃO adicionar FLAG_ACTIVITY_CLEAR_TOP
             }
             startActivity(intent)
-            finish()
-        } else {
-            // Se cancelar, volta para o scanner
-            finish()
+            // NÃO chama finish() aqui - deixa o usuário voltar manualmente se quiser
         }
+        // Se cancelar, não faz nada (fica na tela)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,5 +41,11 @@ class ScannerActivity : AppCompatActivity() {
         }
 
         barcodeLauncher.launch(options)
+    }
+
+    override fun onBackPressed() {
+        // Só fecha se o usuário clicar em voltar
+        super.onBackPressed()
+        finish()
     }
 }
