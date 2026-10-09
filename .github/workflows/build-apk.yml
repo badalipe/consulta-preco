@@ -22,41 +22,19 @@ jobs:
           yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk --licenses > /dev/null || true
           /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Reorganizar arquivos
+      - name: Preparar projeto
         run: |
-          mkdir -p app/src/main/java/com/quickprice/app app/src/main/res/values
+          mkdir -p app/src/main/java/com/quickprice/app app/src/main/res/layout app/src/main/res/values
           [ -f app-build.gradle ] && mv app-build.gradle app/build.gradle
           for f in *.kt; do [ -f "$f" ] && mv "$f" app/src/main/java/com/quickprice/app/; done
           [ -f AndroidManifest.xml ] && mv AndroidManifest.xml app/src/main/
-          [ -f strings.xml ] && mv strings.xml app/src/main/res/values/
-          [ -f themes.xml ] && mv themes.xml app/src/main/res/values/
 
       - name: Compilar APK
         run: gradle assembleDebug --no-daemon
-        continue-on-error: true
-
-      - name: Inspecionar bibliotecas
-        if: always()
-        run: |
-          echo "===== Procurando Barcode.class em todos os jars ====="
-          for JAR in $(find /root/.gradle /home/gradle/.gradle -name "classes.jar" 2>/dev/null); do
-            if unzip -l "$JAR" 2>/dev/null | grep -q "vision/barcode/common/Barcode.class"; then
-              echo "BARCODE ENCONTRADO EM: $JAR"
-              javap -classpath "$JAR" com.google.mlkit.vision.barcode.common.Barcode 2>&1 | grep -E "TYPE_EAN_13|TYPE_CODE_128|getValueType" | head -5
-            fi
-          done
-          echo "===== Procurando Preview.class em todos os jars ====="
-          for JAR in $(find /root/.gradle /home/gradle/.gradle -name "classes.jar" 2>/dev/null); do
-            if unzip -l "$JAR" 2>/dev/null | grep -q "androidx/camera/core/Preview.class"; then
-              echo "PREVIEW ENCONTRADO EM: $JAR"
-              javap -classpath "$JAR" androidx.camera.core.Preview 2>&1 | grep -E "setSurfaceProvider" | head -5
-            fi
-          done
 
       - name: Enviar APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: resultado
-          path: |
-            app/build/outputs/apk/debug/app-debug.apk
+          name: apk-oficial
+          path: app/build/outputs/apk/debug/app-debug.apk
