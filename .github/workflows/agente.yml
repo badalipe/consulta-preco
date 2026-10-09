@@ -33,65 +33,36 @@ jobs:
           [ -f AndroidManifest.xml ] && mv AndroidManifest.xml app/src/main/
           [ -f strings.xml ] && mv strings.xml app/src/main/res/values/
           [ -f themes.xml ] && mv themes.xml app/src/main/res/values/
+          
+          # Garante que o build.gradle tem o JitPack (para o Glide)
+          if ! grep -q "jitpack" build.gradle; then
+            sed -i '/google()/a\        maven { url "https://jitpack.io" }' build.gradle
+          fi
+          
           git config --global user.email "agente@consultapreco.app"
           git config --global user.name "Agente Dots"
 
       - name: CICLO 1 - Compilar
-        id: ciclo1
-        run: gradle assembleDebug --no-daemon 2>&1 | tee /tmp/erro_gradle.txt || true
+        run: gradle assembleDebug --no-daemon 2>&1 | tee /tmp/erro_gradle.txt
 
-      - name: Agente corrige erros
-        if: steps.ciclo1.outcome == 'failure'
+      - name: Agente analisa e corrige
+        if: failure()
         run: |
-          cat > /tmp/corretor.py << 'PYEOF'
-          import re, os
-          
-          with open('/tmp/erro_gradle.txt', 'r') as f:
-              erro = f.read()
-          
-          corrigiu = False
-          for root, dirs, files in os.walk('app/src/main/java'):
-              for file in files:
-                  if file.endswith('.kt'):
-                      caminho = os.path.join(root, file)
-                      with open(caminho, 'r') as f:
-                          codigo = f.read()
-                      corrigido = codigo
-                      
-                      # Adiciona imports faltantes
-                      if 'Glide' in erro and 'import com.bumptech.glide.Glide' not in corrigido:
-                          imports = re.findall(r'import .*\n', corrigido)
-                          if imports:
-                              corrigido = corrigido.replace(imports[-1], imports[-1] + 'import com.bumptech.glide.Glide\n')
-                      
-                      if 'JSONObject' in erro and 'import org.json.JSONObject' not in corrigido:
-                          imports = re.findall(r'import .*\n', corrigido)
-                          if imports:
-                              corrigido = corrigido.replace(imports[-1], imports[-1] + 'import org.json.JSONObject\n')
-                      
-                      if 'JSONArray' in erro and 'import org.json.JSONArray' not in corrigido:
-                          imports = re.findall(r'import .*\n', corrigido)
-                          if imports:
-                              corrigido = corrigido.replace(imports[-1], imports[-1] + 'import org.json.JSONArray\n')
-                      
-                      if corrigido != codigo:
-                          with open(caminho, 'w') as f:
-                              f.write(corrigido)
-                          print(f"✅ Corrigido: {file}")
-                          corrigiu = True
-          
-          if not corrigiu:
-              print("❌ Não consegui corrigir automaticamente")
-          PYEOF
-          python3 /tmp/corretor.py
+          echo "🤖 Agente Dots analisando erro..."
+          # Corrige imports faltantes nos arquivos Kotlin
+          for kt in app/src/main/java/com/quickprice/app/*.kt; do
+            if grep -q "Glide" "$kt" && ! grep -q "import com.bumptech.glide.Glide" "$kt"; then
+              sed -i '/^import /a\import com.bumptech.glide.Glide' "$kt"
+              echo "✅ Adicionado import Glide em $kt"
+            fi
+          done
 
       - name: CICLO 2 - Compilar de novo
-        id: ciclo2
-        if: steps.ciclo1.outcome == 'failure'
-        run: gradle assembleDebug --no-daemon 2>&1 | tee /tmp/erro_gradle.txt || true
+        if: failure()
+        run: gradle assembleDebug --no-daemon 2>&1 | tee /tmp/erro_gradle.txt
 
       - name: Commit das correções
-        if: success() && steps.ciclo1.outcome == 'failure'
+        if: success() && failure()
         run: |
           git add -A
           git commit -m "🤖 Agente Dots corrigiu erros automaticamente" || true
