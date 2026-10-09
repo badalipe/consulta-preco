@@ -1,10 +1,53 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent" android:layout_height="match_parent"
-    android:gravity="center" android:orientation="vertical" android:padding="24dp">
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:text="Consulta de Preço" android:textSize="26sp" android:textStyle="bold" />
-    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-        android:layout_marginTop="12dp" android:textAlignment="center"
-        android:text="Abra o app através do link da sua loja para entrar automaticamente." />
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="40dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Consulta de Preço"
+        android:textColor="#FFFFFF"
+        android:textSize="32sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="Escaneie ou digite o código"
+        android:textColor="#AAAAAA"
+        android:textSize="18sp" />
+
+    <Button
+        android:id="@+id/btnEscanear"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_marginTop="50dp"
+        android:backgroundTint="#0066FF"
+        android:text="📷
+
+ESCANEAR
+CÓDIGO"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/edtCodigo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="40dp"
+        android:background="#1A1A1A"
+        android:hint="Ou digite o código de barras"
+        android:imeOptions="actionSearch"
+        android:inputType="number"
+        android:maxLines="1"
+        android:padding="16dp"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#666666" />
 </LinearLayout>
