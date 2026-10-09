@@ -9,36 +9,34 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
-        android:alpha="0.3"
+        android:alpha="0.2"
         android:visibility="gone" />
 
     <View
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#80000000" />
+        android:background="#90000000" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Cabeçalho -->
+        <!-- Cabeçalho compacto -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="44dp"
             android:background="#0066FF"
             android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="16dp">
+            android:paddingHorizontal="12dp">
 
             <TextView
                 android:id="@+id/btnVoltar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
                 android:text="←"
                 android:textColor="#FFFFFF"
-                android:textSize="24sp"
+                android:textSize="22sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -46,31 +44,25 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="Produto Encontrado"
+                android:text="Produto"
                 android:textColor="#FFFFFF"
-                android:textSize="18sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
                 android:text="🕒"
-                android:textSize="20sp" />
+                android:textSize="18sp" />
         </LinearLayout>
 
         <!-- Imagem pequena -->
-        <FrameLayout
+        <ImageView
+            android:id="@+id/imgProduto"
             android:layout_width="match_parent"
-            android:layout_height="140dp">
-
-            <ImageView
-                android:id="@+id/imgProduto"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:scaleType="centerCrop"
-                android:visibility="gone" />
-        </FrameLayout>
+            android:layout_height="100dp"
+            android:scaleType="centerCrop"
+            android:visibility="gone" />
 
         <!-- Conteúdo compacto -->
         <LinearLayout
@@ -78,26 +70,26 @@
             android:layout_height="0dp"
             android:layout_weight="1"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="12dp">
 
             <TextView
                 android:id="@+id/txtNome"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Escaneie ou digite o código"
+                android:text="Escaneie ou digite"
                 android:textColor="#FFFFFF"
-                android:textSize="24sp"
+                android:textSize="20sp"
                 android:textStyle="bold"
-                android:maxLines="2"
+                android:maxLines="1"
                 android:ellipsize="end" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="Código de Barras"
+                android:layout_marginTop="6dp"
+                android:text="Código"
                 android:textColor="#AAAAAA"
-                android:textSize="14sp" />
+                android:textSize="11sp" />
 
             <TextView
                 android:id="@+id/txtCodigo"
@@ -105,94 +97,94 @@
                 android:layout_height="wrap_content"
                 android:text="-"
                 android:textColor="#FFFFFF"
-                android:textSize="18sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
-            <!-- Preço -->
+            <!-- Preço compacto -->
             <androidx.cardview.widget.CardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="12dp"
                 app:cardBackgroundColor="#0033AA"
-                app:cardCornerRadius="12dp">
+                app:cardCornerRadius="10dp">
 
                 <TextView
                     android:id="@+id/txtPreco"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center"
-                    android:padding="24dp"
+                    android:padding="16dp"
                     android:text="R$ 0,00"
                     android:textColor="#00FF00"
-                    android:textSize="48sp"
+                    android:textSize="40sp"
                     android:textStyle="bold" />
             </androidx.cardview.widget.CardView>
 
-            <!-- Info compacta -->
+            <!-- Info em linha única -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="12dp"
                 android:orientation="horizontal">
 
-                <LinearLayout
+                <TextView
+                    android:id="@+id/txtCategoria"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📦" android:textSize="20sp" />
-                    <TextView android:id="@+id/txtCategoria" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="12sp" />
-                </LinearLayout>
+                    android:gravity="center"
+                    android:text="📦 -"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp" />
 
-                <LinearLayout
+                <TextView
+                    android:id="@+id/txtPeso"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚖️" android:textSize="20sp" />
-                    <TextView android:id="@+id/txtPeso" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="12sp" />
-                </LinearLayout>
+                    android:gravity="center"
+                    android:text="⚖️ -"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp" />
 
-                <LinearLayout
+                <TextView
+                    android:id="@+id/txtValidade"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:gravity="center">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📅" android:textSize="20sp" />
-                    <TextView android:id="@+id/txtValidade" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="12sp" />
-                </LinearLayout>
+                    android:gravity="center"
+                    android:text="📅 -"
+                    android:textColor="#FFFFFF"
+                    android:textSize="11sp" />
             </LinearLayout>
 
-            <!-- Campo de busca -->
+            <!-- Campo de busca compacto -->
             <EditText
                 android:id="@+id/edtCodigo"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_height="40dp"
+                android:layout_marginTop="12dp"
                 android:background="#1A1A1A"
                 android:hint="Digite o código"
                 android:imeOptions="actionSearch"
                 android:inputType="number"
                 android:maxLines="1"
-                android:padding="12dp"
+                android:padding="10dp"
                 android:textColor="#FFFFFF"
                 android:textColorHint="#666666"
-                android:textSize="14sp" />
+                android:textSize="13sp" />
         </LinearLayout>
 
-        <!-- Botão escanear -->
+        <!-- Botão escanear compacto -->
         <Button
             android:id="@+id/btnScan"
-            android:layout_width="100dp"
-            android:layout_height="100dp"
+            android:layout_width="80dp"
+            android:layout_height="80dp"
             android:layout_gravity="center_horizontal"
-            android:layout_margin="12dp"
+            android:layout_margin="10dp"
             android:backgroundTint="#0066FF"
             android:text="📷"
             android:textColor="#FFFFFF"
-            android:textSize="32sp" />
+            android:textSize="28sp" />
     </LinearLayout>
 </FrameLayout>
