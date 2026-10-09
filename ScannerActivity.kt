@@ -2,7 +2,6 @@ package com.quickprice.app
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
@@ -19,15 +18,15 @@ class ScannerActivity : AppCompatActivity() {
                 tg.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 200)
             } catch (e: Exception) { }
 
-            // Vai para resultado - NÃO VOLTA AUTOMATICAMENTE
-            val intent = Intent(this, ResultadoActivity::class.java).apply {
-                putExtra("codigo", result.contents)
-                // Importante: NÃO adicionar FLAG_ACTIVITY_CLEAR_TOP
-            }
+            // Vai para resultado
+            val intent = Intent(this, ResultadoActivity::class.java)
+            intent.putExtra("codigo", result.contents)
             startActivity(intent)
-            // NÃO chama finish() aqui - deixa o usuário voltar manualmente se quiser
+            finish()
+        } else {
+            // Cancelou, volta para o menu
+            finish()
         }
-        // Se cancelar, não faz nada (fica na tela)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,7 +43,6 @@ class ScannerActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        // Só fecha se o usuário clicar em voltar
         super.onBackPressed()
         finish()
     }
