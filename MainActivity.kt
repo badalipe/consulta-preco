@@ -12,14 +12,13 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Layout simples: Botão testar + Botão escanear + Status
         val layout = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             setPadding(50, 100, 50, 50)
         }
 
         val txtStatus = TextView(this).apply {
-            text = "Testando conexão com servidor..."
+            text = "Testando conexão com 10.10.56.103..."
             textSize = 20f
         }
 
@@ -32,10 +31,9 @@ class MainActivity : AppCompatActivity() {
                         val url = URL("http://10.10.56.103/unitario.php")
                         val conn = url.openConnection() as HttpURLConnection
                         conn.connectTimeout = 5000
-                        conn.readTimeout = 5000
                         val code = conn.responseCode
                         runOnUiThread {
-                            txtStatus.text = "✅ CONECTADO! Código: $code"
+                            txtStatus.text = "✅ CONECTADO! HTTP $code"
                         }
                     } catch (e: Exception) {
                         runOnUiThread {
@@ -47,9 +45,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         val btnScan = Button(this).apply {
-            text = "ESCANEAR CÓDIGO"
+            text = "ESCANEAR COM ML KIT"
             setOnClickListener {
-                startActivity(android.content.Intent(this@MainActivity, ScannerActivity::class.java))
+                startActivity(android.content.Intent(this@MainActivity, ResultadoActivity::class.java))
             }
         }
 
@@ -58,7 +56,6 @@ class MainActivity : AppCompatActivity() {
         layout.addView(btnScan)
         setContentView(layout)
 
-        // Testa automaticamente ao abrir
         btnTestar.performClick()
     }
 }
