@@ -2,7 +2,11 @@ package com.quickprice.app
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
 import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.renderscript.Allocation
@@ -31,14 +35,17 @@ class ResultadoActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.txtCodigo).text = codigo
 
+        // Botão voltar para o MENU (não para o scanner)
         findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
-            finish()
+            finish() // Volta para o MainActivity
         }
 
+        // Botão escanear outro
         findViewById<Button>(R.id.btnScan).setOnClickListener {
-            finish()
+            finish() // Volta para o MainActivity
         }
 
+        // Busca manual
         val edt = findViewById<EditText>(R.id.edtCodigo)
         edt.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
@@ -47,16 +54,16 @@ class ResultadoActivity : AppCompatActivity() {
             } else false
         }
 
+        // Busca o produto
         buscar(codigo)
 
-        // Tenta carregar imagem do produto (Open Food Facts) para o fundo Netflix
-        carregarImagemFundo(codigo)
+        // Carrega imagem com efeito Netflix
+        carregarImagem(codigo)
     }
 
-    private fun carregarImagemFundo(codigo: String) {
+    private fun carregarImagem(codigo: String) {
         if (codigo.isEmpty()) return
 
-        // Busca imagem no Open Food Facts
         Thread {
             try {
                 val url = java.net.URL("https://world.openfoodfacts.org/api/v2/product/$codigo.json")
@@ -70,20 +77,19 @@ class ResultadoActivity : AppCompatActivity() {
 
                     if (foto.isNotEmpty() && foto.startsWith("http")) {
                         runOnUiThread {
-                            // Carrega imagem principal
-                            Glide.with(this)
-                                .load(foto)
-                                .into(findViewById<ImageView>(R.id.imgProduto))
-                            findViewById<ImageView>(R.id.imgProduto).visibility = android.view.View.VISIBLE
-
-                            // Carrega imagem de fundo com blur (efeito Netflix)
                             Glide.with(this)
                                 .asBitmap()
                                 .load(foto)
                                 .into(object : CustomTarget<Bitmap>() {
                                     override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                                        val blurred = blurBitmap(resource, 25f) // Blur forte
-                                        findViewById<ImageView>(R.id.imgFundo).setImageBitmap(blurred)
+                                        // Imagem principal com fade lateral
+                                        val comFade = aplicarFadeLateral(resource)
+                                        findViewById<ImageView>(R.id.imgProduto).setImageBitmap(comFade)
+                                        findViewById<ImageView>(R.id.imgProduto).visibility = android.view.View.VISIBLE
+
+                                        // Fundo desfocado
+                                        val blur = blurBitmap(resource, 25f)
+                                        findViewById<ImageView>(R.id.imgFundo).setImageBitmap(blur)
                                         findViewById<ImageView>(R.id.imgFundo).visibility = android.view.View.VISIBLE
                                     }
                                     override fun onLoadCleared(placeholder: Drawable?) {}
@@ -91,13 +97,42 @@ class ResultadoActivity : AppCompatActivity() {
                         }
                     }
                 }
-            } catch (e: Exception) {
-                // Sem imagem, segue sem fundo
-            }
+            } catch (e: Exception) { }
         }.start()
     }
 
-    // Função para desfocar a imagem (blur)
+    private fun aplicarFadeLateral(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
+
+        val paint = Paint()
+        val fadeWidth = (width * 0.15f).toInt()
+
+        // Fade esquerda
+        val gradientLeft = LinearGradient(
+            0f, 0f, fadeWidth.toFloat(), 0f,
+            Color.TRANSPARENT, Color.BLACK,
+            Shader.TileMode.CLAMP
+        )
+        paint.shader = gradientLeft
+        canvas.drawRect(0f, 0f, fadeWidth.toFloat(), height.toFloat(), paint)
+
+        // Fade direita
+        val gradientRight = LinearGradient(
+            (width - fadeWidth).toFloat(), 0f, width.toFloat(), 0f,
+            Color.BLACK, Color.TRANSPARENT,
+            Shader.TileMode.CLAMP
+        )
+        paint.shader = gradientRight
+        canvas.drawRect((width - fadeWidth).toFloat(), 0f, width.toFloat(), height.toFloat(), paint)
+
+        return output
+    }
+
     private fun blurBitmap(bitmap: Bitmap, radius: Float): Bitmap {
         val width = Math.round(bitmap.width * 0.5f)
         val height = Math.round(bitmap.height * 0.5f)
@@ -166,6 +201,7 @@ class ResultadoActivity : AppCompatActivity() {
             }
         }
 
+        // SERVIDOR LOCAL (igual ao equipamento Sweda)
         webView.loadUrl("http://10.10.56.103/unitario.php")
     }
 
