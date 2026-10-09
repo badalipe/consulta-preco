@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- FUNDO DESFOCADO -->
+    <!-- FUNDO DESFOCADO (efeito Netflix) -->
     <ImageView
         android:id="@+id/imgFundo"
         android:layout_width="match_parent"
@@ -23,6 +23,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
+        <!-- Cabeçalho azul -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -69,6 +70,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical">
 
+                <!-- Imagem do produto com fade Netflix -->
                 <FrameLayout
                     android:layout_width="match_parent"
                     android:layout_height="220dp">
@@ -91,9 +93,9 @@
                         android:id="@+id/txtNome"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Buscando..."
+                        android:text="Escaneie ou digite o código"
                         android:textColor="#FFFFFF"
-                        android:textSize="36sp"
+                        android:textSize="32sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -175,6 +177,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="40dp"
                         android:background="#1A1A1A"
+                        android:drawableStart="@android:drawable/ic_menu_search"
                         android:hint="Digite o código de barras"
                         android:imeOptions="actionSearch"
                         android:inputType="number"
