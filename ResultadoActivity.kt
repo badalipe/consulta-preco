@@ -14,6 +14,7 @@ import android.renderscript.Allocation
 import android.renderscript.Element
 import android.renderscript.RenderScript
 import android.renderscript.ScriptIntrinsicBlur
+import android.view.View
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
@@ -27,6 +28,7 @@ import com.bumptech.glide.request.transition.Transition
 
 class ResultadoActivity : AppCompatActivity() {
 
+    private lateinit var webView: WebView
     private val scannerLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -45,15 +47,32 @@ class ResultadoActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_resultado)
 
-        // Botão ESCANEAR - Abre câmera com ML Kit
+        // WebView 100% INVISÍVEL - fica fora da tela
+        webView = WebView(this)
+        webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+
+        // Tamanho 1x1 pixel e invisível
+        webView.visibility = View.INVISIBLE
+        webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+
+        // Adiciona ao root mas invisível
+        (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                // NÃO MOSTRA NADA - só injeta JS
+            }
+        }
+
+        // Botão ESCANEAR
         findViewById<Button>(R.id.btnScan).setOnClickListener {
             val intent = Intent(this, ScannerActivity::class.java)
             scannerLauncher.launch(intent)
         }
 
-        // Botão voltar (fecha app ou volta para tela vazia)
+        // Botão voltar (limpa tela)
         findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
-            // Limpa a tela para nova consulta
             limparTela()
         }
 
@@ -71,7 +90,6 @@ class ResultadoActivity : AppCompatActivity() {
             } else false
         }
 
-        // Tela inicial limpa
         limparTela()
     }
 
@@ -82,8 +100,8 @@ class ResultadoActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.txtCategoria).text = "-"
         findViewById<TextView>(R.id.txtPeso).text = "-"
         findViewById<TextView>(R.id.txtValidade).text = "-"
-        findViewById<ImageView>(R.id.imgProduto).visibility = android.view.View.GONE
-        findViewById<ImageView>(R.id.imgFundo).visibility = android.view.View.GONE
+        findViewById<ImageView>(R.id.imgProduto).visibility = View.GONE
+        findViewById<ImageView>(R.id.imgFundo).visibility = View.GONE
     }
 
     private fun carregarImagem(codigo: String) {
@@ -102,7 +120,6 @@ class ResultadoActivity : AppCompatActivity() {
 
                     if (foto.isNotEmpty() && foto.startsWith("http")) {
                         runOnUiThread {
-                            // Imagem principal com fade lateral (efeito Netflix)
                             Glide.with(this)
                                 .asBitmap()
                                 .load(foto)
@@ -110,12 +127,11 @@ class ResultadoActivity : AppCompatActivity() {
                                     override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
                                         val comFade = aplicarFadeLateral(resource)
                                         findViewById<ImageView>(R.id.imgProduto).setImageBitmap(comFade)
-                                        findViewById<ImageView>(R.id.imgProduto).visibility = android.view.View.VISIBLE
+                                        findViewById<ImageView>(R.id.imgProduto).visibility = View.VISIBLE
 
-                                        // Fundo desfocado
                                         val blur = blurBitmap(resource, 25f)
                                         findViewById<ImageView>(R.id.imgFundo).setImageBitmap(blur)
-                                        findViewById<ImageView>(R.id.imgFundo).visibility = android.view.View.VISIBLE
+                                        findViewById<ImageView>(R.id.imgFundo).visibility = View.VISIBLE
                                     }
                                     override fun onLoadCleared(placeholder: Drawable?) {}
                                 })
@@ -135,9 +151,8 @@ class ResultadoActivity : AppCompatActivity() {
         canvas.drawBitmap(bitmap, 0f, 0f, null)
 
         val paint = Paint()
-        val fadeWidth = (width * 0.2f).toInt() // 20% de cada lado
+        val fadeWidth = (width * 0.2f).toInt()
 
-        // Fade esquerda
         val gradientLeft = LinearGradient(
             0f, 0f, fadeWidth.toFloat(), 0f,
             Color.BLACK, Color.TRANSPARENT,
@@ -146,7 +161,6 @@ class ResultadoActivity : AppCompatActivity() {
         paint.shader = gradientLeft
         canvas.drawRect(0f, 0f, fadeWidth.toFloat(), height.toFloat(), paint)
 
-        // Fade direita
         val gradientRight = LinearGradient(
             (width - fadeWidth).toFloat(), 0f, width.toFloat(), 0f,
             Color.TRANSPARENT, Color.BLACK,
@@ -180,10 +194,6 @@ class ResultadoActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
         findViewById<TextView>(R.id.txtPreco).text = "..."
-
-        val webView = WebView(this)
-        webView.settings.javaScriptEnabled = true
-        webView.settings.domStorageEnabled = true
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
@@ -220,13 +230,9 @@ class ResultadoActivity : AppCompatActivity() {
                     }
                 }, 2000)
             }
-
-            override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
-                mostrarErro("Erro de conexão")
-            }
         }
 
-        // SERVIDOR LOCAL (igual ao equipamento Sweda)
+        // Carrega no servidor local (INVISÍVEL)
         webView.loadUrl("http://10.10.56.103/unitario.php")
     }
 
