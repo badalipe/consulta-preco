@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -16,39 +17,48 @@ class ResultadoActivity : AppCompatActivity() {
 
         val codigo = intent.getStringExtra("codigo") ?: ""
 
-        // Layout igual ao equipamento: Nome grande em cima, Preço gigante embaixo
+        // Layout: Nome + Preço + Botão Voltar
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFF000000.toInt()) // Fundo preto
+            setBackgroundColor(0xFF000000.toInt())
             setPadding(40, 100, 40, 100)
         }
 
         val txtNome = TextView(this).apply {
             text = "Buscando..."
             textSize = 32f
-            setTextColor(0xFFFFFFFF.toInt()) // Branco
+            setTextColor(0xFFFFFFFF.toInt())
             setPadding(0, 0, 0, 50)
         }
 
         val txtPreco = TextView(this).apply {
             text = ""
             textSize = 80f
-            setTextColor(0xFF00FF00.toInt()) // Verde
-            setPadding(0, 50, 0, 0)
+            setTextColor(0xFF00FF00.toInt())
+            setPadding(0, 50, 0, 100)
+        }
+
+        val btnVoltar = Button(this).apply {
+            text = "VOLTAR PARA ESCANEAR"
+            textSize = 20f
+            setOnClickListener {
+                // SÓ VOLTA QUANDO O USUÁRIO CLICAR
+                finish()
+            }
         }
 
         layout.addView(txtNome)
         layout.addView(txtPreco)
+        layout.addView(btnVoltar)
         setContentView(layout)
 
-        // WebView invisível para buscar no servidor (igual ao equipamento)
+        // WebView invisível
         val webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
-                // Injeta o código igual ao equipamento faz
                 val js = """
                     (function() {
                         var campo = document.querySelector('#btnBusca');
@@ -63,7 +73,6 @@ class ResultadoActivity : AppCompatActivity() {
                 """.trimIndent()
                 webView.evaluateJavascript(js, null)
 
-                // Aguarda 2 segundos e lê o resultado
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     webView.evaluateJavascript("""
                         (function() {
@@ -94,12 +103,19 @@ class ResultadoActivity : AppCompatActivity() {
                             }
                         } else {
                             runOnUiThread {
-                                txtNome.text = "Produto não encontrado"
-                                txtPreco.text = ""
+                                txtNome.text = "Produto não encontrado ou erro de conexão"
+                                txtPreco.text = "Toque em VOLTAR para tentar novamente"
                             }
                         }
                     }
-                }, 2000)
+                }, 3000)
+            }
+
+            override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
+                runOnUiThread {
+                    txtNome.text = "Erro de conexão"
+                    txtPreco.text = "Verifique o WiFi"
+                }
             }
         }
 
@@ -107,6 +123,7 @@ class ResultadoActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
+        // Só fecha quando o usuário clicar em voltar
         super.onBackPressed()
         finish()
     }
