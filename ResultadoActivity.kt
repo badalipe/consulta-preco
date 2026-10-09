@@ -17,32 +17,31 @@ class ResultadoActivity : AppCompatActivity() {
 
         val codigo = intent.getStringExtra("codigo") ?: ""
 
-        // Layout: Nome + Preço + Botão Voltar
+        // Layout: Nome grande em cima, Preço gigante embaixo (igual equipamento Sweda)
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFF000000.toInt())
+            setBackgroundColor(0xFF000000.toInt()) // Fundo preto
             setPadding(40, 100, 40, 100)
         }
 
         val txtNome = TextView(this).apply {
             text = "Buscando..."
             textSize = 32f
-            setTextColor(0xFFFFFFFF.toInt())
+            setTextColor(0xFFFFFFFF.toInt()) // Branco
             setPadding(0, 0, 0, 50)
         }
 
         val txtPreco = TextView(this).apply {
             text = ""
             textSize = 80f
-            setTextColor(0xFF00FF00.toInt())
+            setTextColor(0xFF00FF00.toInt()) // Verde
             setPadding(0, 50, 0, 100)
         }
 
         val btnVoltar = Button(this).apply {
-            text = "VOLTAR PARA ESCANEAR"
+            text = "ESCANEAR OUTRO PRODUTO"
             textSize = 20f
             setOnClickListener {
-                // SÓ VOLTA QUANDO O USUÁRIO CLICAR
                 finish()
             }
         }
@@ -52,13 +51,14 @@ class ResultadoActivity : AppCompatActivity() {
         layout.addView(btnVoltar)
         setContentView(layout)
 
-        // WebView invisível
+        // WebView invisível - conecta no servidor LOCAL (igual ao equipamento)
         val webView = WebView(this)
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
+                // Injeta o código no campo de busca
                 val js = """
                     (function() {
                         var campo = document.querySelector('#btnBusca');
@@ -73,6 +73,7 @@ class ResultadoActivity : AppCompatActivity() {
                 """.trimIndent()
                 webView.evaluateJavascript(js, null)
 
+                // Aguarda 2 segundos e lê o resultado
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     webView.evaluateJavascript("""
                         (function() {
@@ -103,12 +104,12 @@ class ResultadoActivity : AppCompatActivity() {
                             }
                         } else {
                             runOnUiThread {
-                                txtNome.text = "Produto não encontrado ou erro de conexão"
-                                txtPreco.text = "Toque em VOLTAR para tentar novamente"
+                                txtNome.text = "Produto não encontrado"
+                                txtPreco.text = ""
                             }
                         }
                     }
-                }, 3000)
+                }, 2000)
             }
 
             override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
@@ -119,11 +120,11 @@ class ResultadoActivity : AppCompatActivity() {
             }
         }
 
-        webView.loadUrl("https://rmarket.cartazfacil.pro/unitario.php")
+        // USA O SERVIDOR LOCAL (igual ao equipamento Sweda)
+        webView.loadUrl("http://10.10.56.103/unitario.php")
     }
 
     override fun onBackPressed() {
-        // Só fecha quando o usuário clicar em voltar
         super.onBackPressed()
         finish()
     }
