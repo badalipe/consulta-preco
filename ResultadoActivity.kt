@@ -5,7 +5,8 @@ import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
-import android.widget.LinearLayout
+import android.widget.EditText
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
@@ -14,42 +15,41 @@ class ResultadoActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_resultado)
 
         val codigo = intent.getStringExtra("codigo") ?: ""
 
-        // Layout: Nome grande em cima, Preço gigante embaixo (igual equipamento Sweda)
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFF000000.toInt()) // Fundo preto
-            setPadding(40, 100, 40, 100)
+        // Preenche código
+        findViewById<TextView>(R.id.txtCodigo).text = codigo
+
+        // Botão voltar
+        findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
+            finish()
         }
 
-        val txtNome = TextView(this).apply {
-            text = "Buscando..."
-            textSize = 32f
-            setTextColor(0xFFFFFFFF.toInt()) // Branco
-            setPadding(0, 0, 0, 50)
+        // Botão escanear
+        findViewById<Button>(R.id.btnScan).setOnClickListener {
+            finish()
         }
 
-        val txtPreco = TextView(this).apply {
-            text = ""
-            textSize = 80f
-            setTextColor(0xFF00FF00.toInt()) // Verde
-            setPadding(0, 50, 0, 100)
+        // Busca manual
+        val edt = findViewById<EditText>(R.id.edtCodigo)
+        edt.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                buscar(edt.text.toString())
+                true
+            } else false
         }
 
-        val btnVoltar = Button(this).apply {
-            text = "ESCANEAR OUTRO PRODUTO"
-            textSize = 20f
-            setOnClickListener {
-                finish()
-            }
-        }
+        // Busca o produto no servidor LOCAL
+        buscar(codigo)
+    }
 
-        layout.addView(txtNome)
-        layout.addView(txtPreco)
-        layout.addView(btnVoltar)
-        setContentView(layout)
+    private fun buscar(codigo: String) {
+        if (codigo.isBlank()) return
+
+        findViewById<TextView>(R.id.txtNome).text = "Buscando..."
+        findViewById<TextView>(R.id.txtPreco).text = "..."
 
         // WebView invisível - conecta no servidor LOCAL (igual ao equipamento)
         val webView = WebView(this)
@@ -58,7 +58,6 @@ class ResultadoActivity : AppCompatActivity() {
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
-                // Injeta o código no campo de busca
                 val js = """
                     (function() {
                         var campo = document.querySelector('#btnBusca');
@@ -73,7 +72,6 @@ class ResultadoActivity : AppCompatActivity() {
                 """.trimIndent()
                 webView.evaluateJavascript(js, null)
 
-                // Aguarda 2 segundos e lê o resultado
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     webView.evaluateJavascript("""
                         (function() {
@@ -86,46 +84,55 @@ class ResultadoActivity : AppCompatActivity() {
                     """.trimIndent()) { resultado ->
                         if (!resultado.isNullOrBlank() && resultado != "null") {
                             val texto = resultado.removeSurrounding("\"")
-                            val linhas = texto.split("\n")
-                            var nome = ""
-                            var preco = ""
-
-                            for (linha in linhas) {
-                                if (linha.contains("R$") || Regex("\\d+,\\d{2}").containsMatchIn(linha)) {
-                                    preco = linha.trim()
-                                } else if (linha.trim().length > 3 && nome.isEmpty()) {
-                                    nome = linha.trim()
-                                }
-                            }
-
-                            runOnUiThread {
-                                txtNome.text = nome.ifEmpty { "Produto" }
-                                txtPreco.text = preco.ifEmpty { "R$ -" }
-                            }
+                            processarResultado(texto, codigo)
                         } else {
-                            runOnUiThread {
-                                txtNome.text = "Produto não encontrado"
-                                txtPreco.text = ""
-                            }
+                            mostrarErro("Produto não encontrado")
                         }
                     }
                 }, 2000)
             }
 
             override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
-                runOnUiThread {
-                    txtNome.text = "Erro de conexão"
-                    txtPreco.text = "Verifique o WiFi"
-                }
+                mostrarErro("Erro de conexão")
             }
         }
 
-        // USA O SERVIDOR LOCAL (igual ao equipamento Sweda)
+        // SERVIDOR LOCAL (igual ao equipamento Sweda)
         webView.loadUrl("http://10.10.56.103/unitario.php")
     }
 
-    override fun onBackPressed() {
-        super.onBackPressed()
-        finish()
+    private fun processarResultado(texto: String, codigo: String) {
+        val linhas = texto.split("\n")
+        var nome = ""
+        var preco = ""
+        var categoria = ""
+        var peso = ""
+        var validade = ""
+
+        for (linha in linhas) {
+            val limpa = linha.trim()
+            when {
+                limpa.contains("R$") || Regex("\\d+,\\d{2}").containsMatchIn(limpa) -> preco = limpa
+                limpa.contains("g", ignoreCase = true) && Regex("\\d+").containsMatchIn(limpa) -> peso = limpa
+                Regex("\\d{2}/\\d{2}/\\d{4}").containsMatchIn(limpa) -> validade = limpa
+                limpa.length > 3 && nome.isEmpty() -> nome = limpa
+            }
+        }
+
+        runOnUiThread {
+            findViewById<TextView>(R.id.txtNome).text = nome.ifEmpty { "Produto" }
+            findViewById<TextView>(R.id.txtPreco).text = preco.ifEmpty { "R$ -" }
+            findViewById<TextView>(R.id.txtCodigo).text = codigo
+            findViewById<TextView>(R.id.txtCategoria).text = categoria.ifEmpty { "-" }
+            findViewById<TextView>(R.id.txtPeso).text = peso.ifEmpty { "-" }
+            findViewById<TextView>(R.id.txtValidade).text = validade.ifEmpty { "-" }
+        }
+    }
+
+    private fun mostrarErro(msg: String) {
+        runOnUiThread {
+            findViewById<TextView>(R.id.txtNome).text = msg
+            findViewById<TextView>(R.id.txtPreco).text = "Tente novamente"
+        }
     }
 }
