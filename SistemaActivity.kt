@@ -6,31 +6,23 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import org.json.JSONObject
 
 /**
- * Motor do app (WebView invisivel - roda em background).
- *
- * Fluxo:
- * 1. Abre a pagina de consulta
- * 2. Se nao estiver logado, tenta logar automaticamente
- * 3. Injeta o codigo de barras no campo de busca
- * 4. Extrai nome, preco, foto e infos do resultado
- * 5. Envia para ResultadoActivity
+ * Motor do app - SEM reconexão automática para evitar loops.
+ * Mantém a sessão do usuário logada permanentemente.
  */
 class SistemaActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_CODIGO = "codigo_barras"
-        private const val INTERVALO_CHECK = 30_000L
         private const val CAMPO_BUSCA = "#btnBusca"
         private const val BTN_PESQUISAR = "#pesq_prod"
         private const val JS_TEM_CAMPO = "(document.getElementById('btnBusca') !== null)"
-        private const val JS_TEM_LINK_UNITARIO =
-            "(function(){var l=document.querySelector('a[href*=\"unitario\"]');return l?l.href.split('?')[0]:'';})()"
     }
 
     private lateinit var webView: WebView
@@ -39,14 +31,6 @@ class SistemaActivity : AppCompatActivity() {
     private var paginaPronta = false
     private var codigoAtual: String? = null
     private var coletando = false
-    private var falhasConsecutivas = 0
-
-    private val watchdog = object : Runnable {
-        override fun run() {
-            verificarSessao()
-            handler.postDelayed(this, INTERVALO_CHECK)
-        }
-    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,107 +39,54 @@ class SistemaActivity : AppCompatActivity() {
         cfg = SessionConfig.load(this) ?: run { finish(); return }
 
         webView = findViewById(R.id.webView)
-        webView.visibility = View.GONE  // Invisivel - roda em background
+        webView.visibility = View.GONE
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
-        
+
+        // MANTÉM COOKIES PARA SEMPRE (não desloga)
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 super.onPageFinished(view, url)
                 paginaPronta = true
-                falhasConsecutivas = 0
-                handler.postDelayed({ cuidarDaPagina(clicarLink = true) }, 1200)
-            }
-            
-            override fun onReceivedError(view: WebView, code: Int, desc: String, url: String) {
-                falhasConsecutivas++
+                handler.postDelayed({ processarPagina() }, 1500)
             }
         }
 
         codigoAtual = intent.getStringExtra(EXTRA_CODIGO)
-        webView.loadUrl(cfg.url)
-        handler.post(watchdog)
+        carregarSistema()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         codigoAtual = intent.getStringExtra(EXTRA_CODIGO)
-        if (paginaPronta) cuidarDaPagina(clicarLink = true)
+        if (paginaPronta) processarPagina()
     }
 
-    private fun cuidarDaPagina(clicarLink: Boolean) {
+    private fun carregarSistema() {
+        paginaPronta = false
+        webView.loadUrl(cfg.url)
+    }
+
+    private fun processarPagina() {
         if (!paginaPronta) return
-        
-        webView.evaluateJavascript(JS_TEM_CAMPO) { tem ->
-            if (tem?.trim() == "true") {
-                // Estamos na pagina de consulta
-                falhasConsecutivas = 0
-                if (codigoAtual != null) {
-                    aplicarCodigoBarras(codigoAtual)
-                }
-                return@evaluateJavascript
-            }
-            
-            // Nao tem campo de busca - procurar link pro unitario
-            webView.evaluateJavascript(JS_TEM_LINK_UNITARIO) { href ->
-                val link = href?.removeSurrounding("\"").orEmpty()
-                if (link.isNotEmpty() && link != "null" && clicarLink) {
-                    webView.loadUrl(link)
-                    return@evaluateJavascript
-                }
-                
-                // Se nao achou link, tentar login
-                tentarLoginAutomatico()
-            }
-        }
-    }
 
-    private fun verificarSessao() {
-        if (!paginaPronta) return
-        
-        // So reconecta se falhou 3 vezes seguidas
-        if (falhasConsecutivas >= 3) {
-            falhasConsecutivas = 0
-            webView.loadUrl(cfg.url)
+        // Se tem código para buscar, injeta
+        if (codigoAtual != null) {
+            aplicarCodigoBarras(codigoAtual)
+            return
         }
-    }
 
-    private fun tentarLoginAutomatico() {
-        val js = """
-            (function() {
-                var form = document.querySelector('form');
-                if (!form) return 'sem_form';
-                var inputs = form.querySelectorAll('input');
-                var user = null, pass = null;
-                for (var i = 0; i < inputs.length; i++) {
-                    var el = inputs[i];
-                    var t = (el.type || '').toLowerCase();
-                    if (t === 'password') { pass = el; }
-                    else if (t !== 'hidden' && t !== 'submit' && t !== 'button'
-                             && t !== 'checkbox' && t !== 'radio' && !el.readOnly) {
-                        if (!user) user = el;
-                    }
-                }
-                if (!user || !pass) return 'sem_campos';
-                user.value = '${cfg.usuario}';
-                pass.value = '${cfg.senha}';
-                user.dispatchEvent(new Event('input', {bubbles:true}));
-                user.dispatchEvent(new Event('change', {bubbles:true}));
-                pass.dispatchEvent(new Event('input', {bubbles:true}));
-                pass.dispatchEvent(new Event('change', {bubbles:true}));
-                var btn = form.querySelector('button, input[type="submit"], input[type="button"]');
-                if (btn) { btn.click(); return 'login_clicou'; }
-                form.submit();
-                return 'login_submit';
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js) { }
+        // Se não tem código, volta para o scanner
+        voltarAoScanner()
     }
 
     private fun aplicarCodigoBarras(codigo: String?) {
         if (codigo.isNullOrBlank() || coletando) return
-        
+
         val js = """
             (function() {
                 var c = document.querySelector('$CAMPO_BUSCA');
@@ -169,11 +100,14 @@ class SistemaActivity : AppCompatActivity() {
                 return 'sem_botao';
             })();
         """.trimIndent()
-        
+
         webView.evaluateJavascript(js) { r ->
             if (r != null && r.contains("ok")) {
                 codigoAtual = null
                 iniciarColeta(codigo)
+            } else {
+                // Se não conseguiu injetar, volta para scanner sem erro
+                voltarAoScanner()
             }
         }
     }
@@ -181,7 +115,7 @@ class SistemaActivity : AppCompatActivity() {
     private fun iniciarColeta(codigo: String, tentativa: Int = 0) {
         if (coletando) return
         coletando = true
-        
+
         val js = """
             (function() {
                 var ret = document.getElementById('retorno');
@@ -193,29 +127,29 @@ class SistemaActivity : AppCompatActivity() {
                 return JSON.stringify({texto: row.innerText, img: img ? img.src : ''});
             })();
         """.trimIndent()
-        
+
         webView.evaluateJavascript(js) { r ->
             coletando = false
             val limpo = r?.removeSurrounding("\"")?.replace("\\\"", "\"")?.replace("\\n", "\n").orEmpty()
-            
+
             if (limpo.isEmpty() || limpo == "null") { 
                 repetirColeta(codigo, tentativa)
                 return@evaluateJavascript 
             }
-            
+
             try {
                 val obj = JSONObject(limpo)
                 if (obj.optBoolean("carregando") || obj.has("erro")) {
                     repetirColeta(codigo, tentativa)
                     return@evaluateJavascript
                 }
-                
+
                 val texto = obj.optString("texto").trim()
                 if (texto.length < 2) {
                     mostrarResultado("Produto nao encontrado", "-", codigo)
                     return@evaluateJavascript
                 }
-                
+
                 val linhas = texto.split("\n").map { it.trim() }.filter { it.isNotBlank() }
                 val regexPreco = Regex("""R?\$?\s?\d{1,3}(\.\d{3})*,\d{2}""")
                 val precoLinha = linhas.firstOrNull { regexPreco.containsMatchIn(it) }
@@ -223,10 +157,10 @@ class SistemaActivity : AppCompatActivity() {
                     ?.let { "R$ $it" } ?: "-"
                 var nome = linhas.firstOrNull { it.length > 3 && it != precoLinha && !regexPreco.containsMatchIn(it) }
                 if (nome == null) nome = "Produto"
-                
+
                 val extras = montarExtras(linhas, nome, precoLinha)
                 mostrarResultado(nome, preco, codigo, obj.optString("img"), extras)
-                
+
             } catch (e: Exception) {
                 repetirColeta(codigo, tentativa)
             }
@@ -245,7 +179,7 @@ class SistemaActivity : AppCompatActivity() {
     }
 
     private fun repetirColeta(codigo: String, tentativa: Int) {
-        if (tentativa >= 10) {
+        if (tentativa >= 8) {
             mostrarResultado("Produto nao encontrado", "-", codigo)
             return 
         }
@@ -267,14 +201,18 @@ class SistemaActivity : AppCompatActivity() {
         finish()
     }
 
-    override fun onDestroy() { 
-        super.onDestroy()
-        handler.removeCallbacks(watchdog) 
-    }
-
-    override fun onBackPressed() {
+    private fun voltarAoScanner() {
         startActivity(Intent(this, ScannerActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP))
         finish()
+    }
+
+    override fun onDestroy() { 
+        super.onDestroy()
+        handler.removeCallbacksAndMessages(null)
+    }
+
+    override fun onBackPressed() {
+        voltarAoScanner()
     }
 }
