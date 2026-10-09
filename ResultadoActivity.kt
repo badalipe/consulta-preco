@@ -1,6 +1,7 @@
 package com.quickprice.app
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -26,43 +27,67 @@ import com.bumptech.glide.request.transition.Transition
 
 class ResultadoActivity : AppCompatActivity() {
 
+    private val scannerLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val codigo = result.data?.getStringExtra("codigo")
+            codigo?.let {
+                findViewById<TextView>(R.id.txtCodigo).text = it
+                buscar(it)
+                carregarImagem(it)
+            }
+        }
+    }
+
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_resultado)
 
-        val codigo = intent.getStringExtra("codigo") ?: ""
-
-        findViewById<TextView>(R.id.txtCodigo).text = codigo
-
-        // Botão voltar para o MENU (não para o scanner)
-        findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
-            finish() // Volta para o MainActivity
+        // Botão ESCANEAR - Abre câmera com ML Kit
+        findViewById<Button>(R.id.btnScan).setOnClickListener {
+            val intent = Intent(this, ScannerActivity::class.java)
+            scannerLauncher.launch(intent)
         }
 
-        // Botão escanear outro
-        findViewById<Button>(R.id.btnScan).setOnClickListener {
-            finish() // Volta para o MainActivity
+        // Botão voltar (fecha app ou volta para tela vazia)
+        findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
+            // Limpa a tela para nova consulta
+            limparTela()
         }
 
         // Busca manual
         val edt = findViewById<EditText>(R.id.edtCodigo)
         edt.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
-                buscar(edt.text.toString())
+                val codigo = edt.text.toString()
+                if (codigo.isNotBlank()) {
+                    findViewById<TextView>(R.id.txtCodigo).text = codigo
+                    buscar(codigo)
+                    carregarImagem(codigo)
+                }
                 true
             } else false
         }
 
-        // Busca o produto
-        buscar(codigo)
+        // Tela inicial limpa
+        limparTela()
+    }
 
-        // Carrega imagem com efeito Netflix
-        carregarImagem(codigo)
+    private fun limparTela() {
+        findViewById<TextView>(R.id.txtNome).text = "Escaneie um produto"
+        findViewById<TextView>(R.id.txtPreco).text = "-"
+        findViewById<TextView>(R.id.txtCodigo).text = "-"
+        findViewById<TextView>(R.id.txtCategoria).text = "-"
+        findViewById<TextView>(R.id.txtPeso).text = "-"
+        findViewById<TextView>(R.id.txtValidade).text = "-"
+        findViewById<ImageView>(R.id.imgProduto).visibility = android.view.View.GONE
+        findViewById<ImageView>(R.id.imgFundo).visibility = android.view.View.GONE
     }
 
     private fun carregarImagem(codigo: String) {
-        if (codigo.isEmpty()) return
+        if (codigo.isEmpty() || codigo == "-") return
 
         Thread {
             try {
@@ -77,12 +102,12 @@ class ResultadoActivity : AppCompatActivity() {
 
                     if (foto.isNotEmpty() && foto.startsWith("http")) {
                         runOnUiThread {
+                            // Imagem principal com fade lateral (efeito Netflix)
                             Glide.with(this)
                                 .asBitmap()
                                 .load(foto)
                                 .into(object : CustomTarget<Bitmap>() {
                                     override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                                        // Imagem principal com fade lateral
                                         val comFade = aplicarFadeLateral(resource)
                                         findViewById<ImageView>(R.id.imgProduto).setImageBitmap(comFade)
                                         findViewById<ImageView>(R.id.imgProduto).visibility = android.view.View.VISIBLE
@@ -110,12 +135,12 @@ class ResultadoActivity : AppCompatActivity() {
         canvas.drawBitmap(bitmap, 0f, 0f, null)
 
         val paint = Paint()
-        val fadeWidth = (width * 0.15f).toInt()
+        val fadeWidth = (width * 0.2f).toInt() // 20% de cada lado
 
         // Fade esquerda
         val gradientLeft = LinearGradient(
             0f, 0f, fadeWidth.toFloat(), 0f,
-            Color.TRANSPARENT, Color.BLACK,
+            Color.BLACK, Color.TRANSPARENT,
             Shader.TileMode.CLAMP
         )
         paint.shader = gradientLeft
@@ -124,7 +149,7 @@ class ResultadoActivity : AppCompatActivity() {
         // Fade direita
         val gradientRight = LinearGradient(
             (width - fadeWidth).toFloat(), 0f, width.toFloat(), 0f,
-            Color.BLACK, Color.TRANSPARENT,
+            Color.TRANSPARENT, Color.BLACK,
             Shader.TileMode.CLAMP
         )
         paint.shader = gradientRight
@@ -151,7 +176,7 @@ class ResultadoActivity : AppCompatActivity() {
     }
 
     private fun buscar(codigo: String) {
-        if (codigo.isBlank()) return
+        if (codigo.isBlank() || codigo == "-") return
 
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
         findViewById<TextView>(R.id.txtPreco).text = "..."
