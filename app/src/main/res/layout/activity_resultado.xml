@@ -1,182 +1,202 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#000000"
-    android:orientation="vertical">
+    android:layout_height="match_parent">
 
-    <!-- Cabeçalho azul -->
+    <!-- IMAGEM DE FUNDO DESFOCADA (efeito Netflix) -->
+    <ImageView
+        android:id="@+id/imgFundo"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:alpha="0.3"
+        android:visibility="gone" />
+
+    <!-- Overlay escuro para melhorar leitura -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#80000000" />
+
+    <!-- CONTEÚDO PRINCIPAL -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:background="#0066FF"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="16dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/btnVoltar"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:text="←"
-            android:textColor="#FFFFFF"
-            android:textSize="28sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="Produto Encontrado"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:padding="8dp"
-            android:text="🕒"
-            android:textSize="24sp" />
-    </LinearLayout>
-
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1">
-
+        <!-- Cabeçalho azul -->
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:padding="24dp">
+            android:layout_height="56dp"
+            android:background="#0066FF"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp">
 
-            <!-- Foto do produto -->
-            <ImageView
-                android:id="@+id/imgProduto"
-                android:layout_width="match_parent"
-                android:layout_height="200dp"
-                android:scaleType="fitCenter"
-                android:visibility="gone" />
-
-            <!-- Nome do produto -->
             <TextView
-                android:id="@+id/txtNome"
-                android:layout_width="match_parent"
+                android:id="@+id/btnVoltar"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="Buscando..."
+                android:padding="8dp"
+                android:text="←"
                 android:textColor="#FFFFFF"
-                android:textSize="36sp"
+                android:textSize="28sp"
                 android:textStyle="bold" />
 
-            <!-- Código de barras -->
             <TextView
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="24dp"
-                android:text="Código de Barras"
-                android:textColor="#888888"
-                android:textSize="16sp" />
-
-            <TextView
-                android:id="@+id/txtCodigo"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="-"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:text="Produto Encontrado"
                 android:textColor="#FFFFFF"
-                android:textSize="24sp"
+                android:textSize="20sp"
                 android:textStyle="bold" />
 
-            <!-- Cartão do preço -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="match_parent"
+            <TextView
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
-                app:cardBackgroundColor="#0033AA"
-                app:cardCornerRadius="16dp">
+                android:padding="8dp"
+                android:text="🕒"
+                android:textSize="24sp" />
+        </LinearLayout>
 
-                <TextView
-                    android:id="@+id/txtPreco"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:padding="32dp"
-                    android:text="R$ 0,00"
-                    android:textColor="#00FF00"
-                    android:textSize="64sp"
-                    android:textStyle="bold" />
-            </androidx.cardview.widget.CardView>
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
 
-            <!-- Informações adicionais -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="32dp"
-                android:orientation="horizontal">
+                android:orientation="vertical"
+                android:padding="24dp">
 
-                <LinearLayout
-                    android:layout_width="0dp"
+                <!-- Foto do produto principal -->
+                <ImageView
+                    android:id="@+id/imgProduto"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:scaleType="fitCenter"
+                    android:visibility="gone" />
+
+                <!-- Nome do produto -->
+                <TextView
+                    android:id="@+id/txtNome"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📦" android:textSize="24sp" />
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Categoria" android:textColor="#888888" android:textSize="14sp" />
-                    <TextView android:id="@+id/txtCategoria" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
+                    android:layout_marginTop="16dp"
+                    android:text="Buscando..."
+                    android:textColor="#FFFFFF"
+                    android:textSize="36sp"
+                    android:textStyle="bold" />
+
+                <!-- Código de barras -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:text="Código de Barras"
+                    android:textColor="#AAAAAA"
+                    android:textSize="16sp" />
+
+                <TextView
+                    android:id="@+id/txtCodigo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="-"
+                    android:textColor="#FFFFFF"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <!-- Cartão do preço -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    app:cardBackgroundColor="#0033AA"
+                    app:cardCornerRadius="16dp">
+
+                    <TextView
+                        android:id="@+id/txtPreco"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:padding="32dp"
+                        android:text="R$ 0,00"
+                        android:textColor="#00FF00"
+                        android:textSize="64sp"
+                        android:textStyle="bold" />
+                </androidx.cardview.widget.CardView>
+
+                <!-- Informações adicionais -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="32dp"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📦" android:textSize="24sp" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Categoria" android:textColor="#AAAAAA" android:textSize="14sp" />
+                        <TextView android:id="@+id/txtCategoria" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚖️" android:textSize="24sp" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Peso/Qtd" android:textColor="#AAAAAA" android:textSize="14sp" />
+                        <TextView android:id="@+id/txtPeso" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📅" android:textSize="24sp" />
+                        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Validade" android:textColor="#AAAAAA" android:textSize="14sp" />
+                        <TextView android:id="@+id/txtValidade" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
+                    </LinearLayout>
                 </LinearLayout>
 
-                <LinearLayout
-                    android:layout_width="0dp"
+                <!-- Campo de busca manual -->
+                <EditText
+                    android:id="@+id/edtCodigo"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚖️" android:textSize="24sp" />
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Peso/Qtd" android:textColor="#888888" android:textSize="14sp" />
-                    <TextView android:id="@+id/txtPeso" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📅" android:textSize="24sp" />
-                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Validade" android:textColor="#888888" android:textSize="14sp" />
-                    <TextView android:id="@+id/txtValidade" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="16sp" android:textStyle="bold" />
-                </LinearLayout>
+                    android:layout_marginTop="40dp"
+                    android:background="#1A1A1A"
+                    android:hint="Digite o código de barras"
+                    android:imeOptions="actionSearch"
+                    android:inputType="number"
+                    android:maxLines="1"
+                    android:padding="16dp"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#666666" />
             </LinearLayout>
+        </ScrollView>
 
-            <!-- Campo de busca manual -->
-            <EditText
-                android:id="@+id/edtCodigo"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="40dp"
-                android:background="#1A1A1A"
-                android:hint="Digite o código de barras"
-                android:imeOptions="actionSearch"
-                android:inputType="number"
-                android:maxLines="1"
-                android:padding="16dp"
-                android:textColor="#FFFFFF"
-                android:textColorHint="#666666" />
-        </LinearLayout>
-    </ScrollView>
-
-    <!-- Botão escanear gigante -->
-    <Button
-        android:id="@+id/btnScan"
-        android:layout_width="140dp"
-        android:layout_height="140dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_margin="20dp"
-        android:backgroundTint="#0066FF"
-        android:text="📷
+        <!-- Botão escanear gigante -->
+        <Button
+            android:id="@+id/btnScan"
+            android:layout_width="140dp"
+            android:layout_height="140dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_margin="20dp"
+            android:backgroundTint="#0066FF"
+            android:text="📷
 ESCANEAR"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:textStyle="bold" />
-</LinearLayout>
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</FrameLayout>
