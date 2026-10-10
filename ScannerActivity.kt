@@ -29,20 +29,20 @@ class ScannerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Layout com branding ML Kit
+        // Layout fullscreen - não deixa ir para segundo plano
         val rootLayout = FrameLayout(this).apply {
             setBackgroundColor(0xFF000000.toInt())
         }
 
-        // Preview da câmera
+        // Preview da câmera (ocupa tela toda)
         previewView = PreviewView(this)
         rootLayout.addView(previewView)
 
-        // Overlay com informações ML Kit
+        // Overlay com informações ML Kit (semi-transparente no topo)
         val overlayLayout = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
-            setBackgroundColor(0x80000000.toInt())
-            setPadding(30, 50, 30, 50)
+            setBackgroundColor(0xCC000000.toInt()) // Mais opaco
+            setPadding(30, 60, 30, 30)
         }
 
         // Título ML Kit
@@ -51,7 +51,7 @@ class ScannerActivity : AppCompatActivity() {
             setTextColor(0xFFFFFFFF.toInt())
             textSize = 24f
             setTypeface(null, android.graphics.Typeface.BOLD)
-            setPadding(0, 0, 0, 20)
+            setPadding(0, 0, 0, 16)
         }
 
         // Badge ML Kit Google
@@ -59,13 +59,13 @@ class ScannerActivity : AppCompatActivity() {
             text = "✓ Powered by ML Kit (Google)"
             setTextColor(0xFF00FF00.toInt())
             textSize = 16f
-            setPadding(0, 0, 0, 10)
+            setPadding(0, 0, 0, 8)
         }
 
         // Instrução
         val txtInstrucao = TextView(this).apply {
             text = "Aponte a câmera para o código de barras"
-            setTextColor(0xFFAAAAAA.toInt())
+            setTextColor(0xFFCCCCCC.toInt())
             textSize = 14f
         }
 
@@ -81,6 +81,9 @@ class ScannerActivity : AppCompatActivity() {
         rootLayout.addView(overlayLayout, overlayParams)
 
         setContentView(rootLayout)
+
+        // Impede que o app vá para segundo plano
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED
@@ -183,7 +186,7 @@ class ScannerActivity : AppCompatActivity() {
                 putExtra("codigo", codigo)
             }
             setResult(RESULT_OK, intent)
-            finish()
+            finish() // Volta para MainActivity
         }
     }
 
