@@ -184,24 +184,25 @@
             android:textColorHint="#555555"
             android:textSize="14sp" />
 
-        <!-- BOTÃO ESCANEAR CORRIGIDO -->
+        <!-- BOTÃO ESCANEAR CORRIGIDO - Texto menor -->
         <Button
             android:id="@+id/btnScan"
-            android:layout_width="130dp"
-            android:layout_height="130dp"
+            android:layout_width="110dp"
+            android:layout_height="110dp"
             android:layout_gravity="center_horizontal"
-            android:layout_margin="16dp"
+            android:layout_margin="14dp"
             android:backgroundTint="#0066FF"
-            android:text="📷&#10;ESCANEAR"
+            android:text="📷
+SCAN"
             android:textColor="#FFFFFF"
-            android:textSize="16sp"
+            android:textSize="14sp"
             android:textStyle="bold"
             android:elevation="8dp"
-            app:cornerRadius="65dp" />
+            app:cornerRadius="55dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="56dp"
+            android:layout_height="52dp"
             android:orientation="horizontal"
             android:gravity="center">
 
