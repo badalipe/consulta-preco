@@ -9,6 +9,8 @@ import android.graphics.Paint
 import android.graphics.Shader
 import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.renderscript.Allocation
 import android.renderscript.Element
 import android.renderscript.RenderScript
@@ -25,8 +27,13 @@ import androidx.appcompat.app.AppCompatActivity
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MainActivity : AppCompatActivity() {
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var timeoutRunnable: Runnable? = null
 
     private val scannerLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
@@ -34,51 +41,35 @@ class MainActivity : AppCompatActivity() {
         if (result.resultCode == RESULT_OK) {
             val codigo = result.data?.getStringExtra("codigo")
             codigo?.let {
-                // Atualiza a tela com o código escaneado
                 findViewById<TextView>(R.id.txtCodigo).text = it
-                findViewById<TextView>(R.id.txtNome).text = "Código detectado: $it"
-
-                // Tenta buscar (vai falhar em casa, mas não fecha o app)
-                try {
-                    buscarPreco(it)
-                    carregarImagem(it)
-                } catch (e: Exception) {
-                    Toast.makeText(this, "Erro ao buscar: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
+                buscarPreco(it)
+                carregarImagem(it)
             }
         }
-        // Se cancelou (resultCode != RESULT_OK), não faz nada - fica na tela principal
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Botão ESCANEAR
         findViewById<Button>(R.id.btnScan).setOnClickListener {
             val intent = Intent(this, ScannerActivity::class.java)
             scannerLauncher.launch(intent)
         }
 
-        // Digitação manual
         val edt = findViewById<EditText>(R.id.edtCodigo)
         edt.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
                 val codigo = edt.text.toString()
                 if (codigo.isNotBlank()) {
                     findViewById<TextView>(R.id.txtCodigo).text = codigo
-                    try {
-                        buscarPreco(codigo)
-                        carregarImagem(codigo)
-                    } catch (e: Exception) {
-                        Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show()
-                    }
+                    buscarPreco(codigo)
+                    carregarImagem(codigo)
                 }
                 true
             } else false
         }
 
-        // Botão voltar (limpa tela)
         findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
             limparTela()
         }
@@ -101,8 +92,8 @@ class MainActivity : AppCompatActivity() {
 
         Thread {
             try {
-                val url = java.net.URL("https://world.openfoodfacts.org/api/v2/product/$codigo.json")
-                val conn = url.openConnection() as java.net.HttpURLConnection
+                val url = URL("https://world.openfoodfacts.org/api/v2/product/$codigo.json")
+                val conn = url.openConnection() as HttpURLConnection
                 conn.connectTimeout = 5000
                 val json = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
 
@@ -128,15 +119,11 @@ class MainActivity : AppCompatActivity() {
                                         }
                                         override fun onLoadCleared(placeholder: Drawable?) {}
                                     })
-                            } catch (e: Exception) {
-                                // Ignora erro de imagem
-                            }
+                            } catch (e: Exception) { }
                         }
                     }
                 }
-            } catch (e: Exception) {
-                // Ignora erro de rede
-            }
+            } catch (e: Exception) { }
         }.start()
     }
 
@@ -183,39 +170,77 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
 
-        try {
-            val webView = WebView(this)
-            webView.settings.javaScriptEnabled = true
-            webView.settings.domStorageEnabled = true
-            webView.visibility = View.INVISIBLE
-            webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
-            (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
+        // Cancela timeout anterior se houver
+        timeoutRunnable?.let { handler.removeCallbacks(it) }
 
-            webView.webViewClient = object : WebViewClient() {
-                override fun onPageFinished(view: WebView, url: String) {
-                    val js = "(function(){var c=document.querySelector('#btnBusca');if(c){c.value='$codigo';c.dispatchEvent(new Event('input',{bubbles:true}));if(window.jQuery){jQuery('#pesq_prod').click();}}})();"
-                    webView.evaluateJavascript(js, null)
+        // Define timeout de 10 segundos
+        timeoutRunnable = Runnable {
+            findViewById<TextView>(R.id.txtNome).text = "Tempo esgotado - servidor não responde"
+            Toast.makeText(this, "Servidor não responde. Verifique o IP da rede.", Toast.LENGTH_LONG).show()
+        }
+        handler.postDelayed(timeoutRunnable!!, 10000)
 
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        webView.evaluateJavascript("(function(){var r=document.getElementById('retorno');if(r&&r.innerText.trim().length>3){return r.innerText;}return '';})()") { res ->
-                            if (!res.isNullOrBlank() && res != "null") {
-                                processar(res.removeSurrounding("\""), codigo)
-                            } else {
-                                mostrarErro("Produto não encontrado (verifique a rede)")
-                            }
-                        }
-                    }, 2000)
+        Thread {
+            try {
+                // Testa conexão primeiro
+                val testUrl = URL("http://10.10.56.103/unitario.php")
+                val testConn = testUrl.openConnection() as HttpURLConnection
+                testConn.connectTimeout = 5000
+                testConn.readTimeout = 5000
+                val responseCode = testConn.responseCode
+
+                if (responseCode != 200) {
+                    runOnUiThread {
+                        timeoutRunnable?.let { handler.removeCallbacks(it) }
+                        findViewById<TextView>(R.id.txtNome).text = "Servidor retornou erro $responseCode"
+                    }
+                    return@Thread
                 }
 
-                override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
-                    mostrarErro("Sem conexão com servidor (use o WiFi da loja)")
+                // Se conectou, busca o produto
+                val webView = WebView(this@MainActivity)
+                webView.settings.javaScriptEnabled = true
+                webView.settings.domStorageEnabled = true
+                webView.visibility = View.INVISIBLE
+                webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+
+                runOnUiThread {
+                    (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
+
+                    webView.webViewClient = object : WebViewClient() {
+                        override fun onPageFinished(view: WebView, url: String) {
+                            val js = "(function(){var c=document.querySelector('#btnBusca');if(c){c.value='$codigo';c.dispatchEvent(new Event('input',{bubbles:true}));if(window.jQuery){jQuery('#pesq_prod').click();}}})();"
+                            webView.evaluateJavascript(js, null)
+
+                            handler.postDelayed({
+                                webView.evaluateJavascript("(function(){var r=document.getElementById('retorno');if(r&&r.innerText.trim().length>3){return r.innerText;}return '';})()") { res ->
+                                    timeoutRunnable?.let { handler.removeCallbacks(it) }
+
+                                    if (!res.isNullOrBlank() && res != "null") {
+                                        processar(res.removeSurrounding("\""), codigo)
+                                    } else {
+                                        findViewById<TextView>(R.id.txtNome).text = "Produto não encontrado no sistema"
+                                    }
+                                }
+                            }, 3000)
+                        }
+
+                        override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
+                            timeoutRunnable?.let { handler.removeCallbacks(it) }
+                            findViewById<TextView>(R.id.txtNome).text = "Erro de conexão com servidor"
+                        }
+                    }
+
+                    webView.loadUrl("http://10.10.56.103/unitario.php")
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    timeoutRunnable?.let { handler.removeCallbacks(it) }
+                    findViewById<TextView>(R.id.txtNome).text = "Erro: ${e.message}"
+                    Toast.makeText(this@MainActivity, "Erro de conexão: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
-
-            webView.loadUrl("http://10.10.56.103/unitario.php")
-        } catch (e: Exception) {
-            mostrarErro("Erro: ${e.message}")
-        }
+        }.start()
     }
 
     private fun processar(texto: String, codigo: String) {
@@ -246,10 +271,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun mostrarErro(msg: String) {
-        runOnUiThread {
-            findViewById<TextView>(R.id.txtNome).text = msg
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        timeoutRunnable?.let { handler.removeCallbacks(it) }
     }
 }
