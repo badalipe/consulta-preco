@@ -3,6 +3,7 @@ package com.quickprice.app
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -22,36 +23,64 @@ import java.util.concurrent.Executors
 class ScannerActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
-    private lateinit var txtDebug: TextView
     private var leuCodigo = false
     private val executor = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Layout simples com debug
-        val layout = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
+        // Layout com branding ML Kit
+        val rootLayout = FrameLayout(this).apply {
             setBackgroundColor(0xFF000000.toInt())
         }
 
-        txtDebug = TextView(this).apply {
-            text = "Iniciando câmera ML Kit..."
-            setTextColor(0xFFFFFFFF.toInt())
-            textSize = 18f
-            setPadding(20, 20, 20, 20)
+        // Preview da câmera
+        previewView = PreviewView(this)
+        rootLayout.addView(previewView)
+
+        // Overlay com informações ML Kit
+        val overlayLayout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setBackgroundColor(0x80000000.toInt())
+            setPadding(30, 50, 30, 50)
         }
 
-        previewView = PreviewView(this)
-        previewView.layoutParams = android.widget.LinearLayout.LayoutParams(
-            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-            0,
-            1f
-        )
+        // Título ML Kit
+        val txtTitulo = TextView(this).apply {
+            text = "🔍 ESCANEANDO..."
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 24f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, 0, 0, 20)
+        }
 
-        layout.addView(txtDebug)
-        layout.addView(previewView)
-        setContentView(layout)
+        // Badge ML Kit Google
+        val txtMLKit = TextView(this).apply {
+            text = "✓ Powered by ML Kit (Google)"
+            setTextColor(0xFF00FF00.toInt())
+            textSize = 16f
+            setPadding(0, 0, 0, 10)
+        }
+
+        // Instrução
+        val txtInstrucao = TextView(this).apply {
+            text = "Aponte a câmera para o código de barras"
+            setTextColor(0xFFAAAAAA.toInt())
+            textSize = 14f
+        }
+
+        overlayLayout.addView(txtTitulo)
+        overlayLayout.addView(txtMLKit)
+        overlayLayout.addView(txtInstrucao)
+
+        // Adiciona overlay no topo
+        val overlayParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        )
+        rootLayout.addView(overlayLayout, overlayParams)
+
+        setContentView(rootLayout)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED
@@ -69,47 +98,35 @@ class ScannerActivity : AppCompatActivity() {
         if (requestCode == 10 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             iniciarCamera()
         } else {
-            txtDebug.text = "ERRO: Permissão de câmera negada!"
+            Toast.makeText(this, "Permissão de câmera necessária", Toast.LENGTH_LONG).show()
+            finish()
         }
     }
 
     private fun iniciarCamera() {
-        txtDebug.text = "Carregando CameraX..."
+        val providerFuture = ProcessCameraProvider.getInstance(this)
+        providerFuture.addListener({
+            try {
+                val provider = providerFuture.get()
+                val preview = Preview.Builder().build()
+                preview.setSurfaceProvider(previewView.surfaceProvider)
 
-        try {
-            val providerFuture = ProcessCameraProvider.getInstance(this)
-            providerFuture.addListener({
-                try {
-                    val provider = providerFuture.get()
-                    val preview = Preview.Builder().build()
-                    preview.setSurfaceProvider(previewView.surfaceProvider)
+                val imageAnalysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setTargetRotation(previewView.display.rotation)
+                    .build()
 
-                    txtDebug.text = "Câmera iniciada! Iniciando ML Kit..."
-
-                    val imageAnalysis = ImageAnalysis.Builder()
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setTargetRotation(previewView.display.rotation)
-                        .build()
-
-                    imageAnalysis.setAnalyzer(executor) { imageProxy ->
-                        processarFrame(imageProxy)
-                    }
-
-                    provider.unbindAll()
-                    provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageAnalysis)
-
-                    runOnUiThread {
-                        txtDebug.text = "✓ ML Kit ATIVO - Aponte para o código de barras"
-                    }
-                } catch (e: Exception) {
-                    runOnUiThread {
-                        txtDebug.text = "ERRO CameraX: ${e.message}"
-                    }
+                imageAnalysis.setAnalyzer(executor) { imageProxy ->
+                    processarFrame(imageProxy)
                 }
-            }, ContextCompat.getMainExecutor(this))
-        } catch (e: Exception) {
-            txtDebug.text = "ERRO ao iniciar: ${e.message}"
-        }
+
+                provider.unbindAll()
+                provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageAnalysis)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Erro ao iniciar câmera: ${e.message}", Toast.LENGTH_LONG).show()
+                finish()
+            }
+        }, ContextCompat.getMainExecutor(this))
     }
 
     private fun processarFrame(imageProxy: ImageProxy) {
@@ -148,11 +165,7 @@ class ScannerActivity : AppCompatActivity() {
                         }
                     }
                 }
-                .addOnFailureListener { e ->
-                    runOnUiThread {
-                        txtDebug.text = "ERRO ML Kit: ${e.message}"
-                    }
-                }
+                .addOnFailureListener { }
                 .addOnCompleteListener { imageProxy.close() }
         } catch (e: Exception) {
             imageProxy.close()
