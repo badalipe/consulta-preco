@@ -3,6 +3,7 @@ package com.quickprice.app
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
@@ -21,13 +22,36 @@ import java.util.concurrent.Executors
 class ScannerActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView
+    private lateinit var txtDebug: TextView
     private var leuCodigo = false
     private val executor = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_scanner)
-        previewView = findViewById(R.id.previewView)
+
+        // Layout simples com debug
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setBackgroundColor(0xFF000000.toInt())
+        }
+
+        txtDebug = TextView(this).apply {
+            text = "Iniciando câmera ML Kit..."
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 18f
+            setPadding(20, 20, 20, 20)
+        }
+
+        previewView = PreviewView(this)
+        previewView.layoutParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        )
+
+        layout.addView(txtDebug)
+        layout.addView(previewView)
+        setContentView(layout)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED
@@ -45,29 +69,47 @@ class ScannerActivity : AppCompatActivity() {
         if (requestCode == 10 && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
             iniciarCamera()
         } else {
-            Toast.makeText(this, "Permissão necessária", Toast.LENGTH_SHORT).show()
+            txtDebug.text = "ERRO: Permissão de câmera negada!"
         }
     }
 
     private fun iniciarCamera() {
-        val providerFuture = ProcessCameraProvider.getInstance(this)
-        providerFuture.addListener({
-            val provider = providerFuture.get()
-            val preview = Preview.Builder().build()
-            preview.setSurfaceProvider(previewView.surfaceProvider)
+        txtDebug.text = "Carregando CameraX..."
 
-            val imageAnalysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setTargetRotation(previewView.display.rotation)
-                .build()
+        try {
+            val providerFuture = ProcessCameraProvider.getInstance(this)
+            providerFuture.addListener({
+                try {
+                    val provider = providerFuture.get()
+                    val preview = Preview.Builder().build()
+                    preview.setSurfaceProvider(previewView.surfaceProvider)
 
-            imageAnalysis.setAnalyzer(executor) { imageProxy ->
-                processarFrame(imageProxy)
-            }
+                    txtDebug.text = "Câmera iniciada! Iniciando ML Kit..."
 
-            provider.unbindAll()
-            provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageAnalysis)
-        }, ContextCompat.getMainExecutor(this))
+                    val imageAnalysis = ImageAnalysis.Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setTargetRotation(previewView.display.rotation)
+                        .build()
+
+                    imageAnalysis.setAnalyzer(executor) { imageProxy ->
+                        processarFrame(imageProxy)
+                    }
+
+                    provider.unbindAll()
+                    provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageAnalysis)
+
+                    runOnUiThread {
+                        txtDebug.text = "✓ ML Kit ATIVO - Aponte para o código de barras"
+                    }
+                } catch (e: Exception) {
+                    runOnUiThread {
+                        txtDebug.text = "ERRO CameraX: ${e.message}"
+                    }
+                }
+            }, ContextCompat.getMainExecutor(this))
+        } catch (e: Exception) {
+            txtDebug.text = "ERRO ao iniciar: ${e.message}"
+        }
     }
 
     private fun processarFrame(imageProxy: ImageProxy) {
@@ -82,31 +124,39 @@ class ScannerActivity : AppCompatActivity() {
             return
         }
 
-        val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-        val scanner = BarcodeScanning.getClient()
+        try {
+            val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+            val scanner = BarcodeScanning.getClient()
 
-        scanner.process(inputImage)
-            .addOnSuccessListener { barcodes ->
-                for (barcode in barcodes) {
-                    when (barcode.format) {
-                        Barcode.FORMAT_EAN_13,
-                        Barcode.FORMAT_EAN_8,
-                        Barcode.FORMAT_UPC_A,
-                        Barcode.FORMAT_UPC_E,
-                        Barcode.FORMAT_CODE_128,
-                        Barcode.FORMAT_CODE_39 -> {
-                            barcode.rawValue?.let { codigo ->
-                                if (!leuCodigo) {
-                                    leuCodigo = true
-                                    onCodigoLido(codigo)
+            scanner.process(inputImage)
+                .addOnSuccessListener { barcodes ->
+                    for (barcode in barcodes) {
+                        when (barcode.format) {
+                            Barcode.FORMAT_EAN_13,
+                            Barcode.FORMAT_EAN_8,
+                            Barcode.FORMAT_UPC_A,
+                            Barcode.FORMAT_UPC_E,
+                            Barcode.FORMAT_CODE_128,
+                            Barcode.FORMAT_CODE_39 -> {
+                                barcode.rawValue?.let { codigo ->
+                                    if (!leuCodigo) {
+                                        leuCodigo = true
+                                        onCodigoLido(codigo)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-            .addOnFailureListener { }
-            .addOnCompleteListener { imageProxy.close() }
+                .addOnFailureListener { e ->
+                    runOnUiThread {
+                        txtDebug.text = "ERRO ML Kit: ${e.message}"
+                    }
+                }
+                .addOnCompleteListener { imageProxy.close() }
+        } catch (e: Exception) {
+            imageProxy.close()
+        }
     }
 
     private fun onCodigoLido(codigo: String) {
