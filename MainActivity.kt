@@ -5,8 +5,6 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import java.net.HttpURLConnection
-import java.net.InetAddress
-import java.net.NetworkInterface
 import java.net.URL
 
 class MainActivity : AppCompatActivity() {
@@ -20,9 +18,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         val txtStatus = TextView(this).apply {
-            text = "Toque para varrer"
-            textSize = 20f
-            setPadding(0, 0, 0, 40)
+            text = "Toque para varrer as redes"
+            textSize = 18f
+            setPadding(0, 0, 0, 30)
+        }
+
+        val txtRede1 = TextView(this).apply {
+            text = "Rede 1: 10.71.6.X"
+            textSize = 16f
+            setPadding(0, 0, 0, 10)
+        }
+
+        val txtRede2 = TextView(this).apply {
+            text = "Rede 2: 10.10.254.X"
+            textSize = 16f
+            setPadding(0, 0, 0, 30)
         }
 
         val txtResultado = TextView(this).apply {
@@ -33,97 +43,90 @@ class MainActivity : AppCompatActivity() {
         }
 
         val btnVarredura = Button(this).apply {
-            text = "VARRER REDE"
+            text = "VARRER AMBAS REDES"
             setOnClickListener {
                 txtStatus.text = "Varrendo..."
                 txtResultado.text = ""
-                varrer(txtStatus, txtResultado)
+                varrerRedes(txtStatus, txtResultado)
             }
         }
 
         layout.addView(txtStatus)
+        layout.addView(txtRede1)
+        layout.addView(txtRede2)
         layout.addView(btnVarredura)
         layout.addView(txtResultado)
 
         setContentView(layout)
-
-        Thread {
-            val ip = getIP()
-            runOnUiThread {
-                txtStatus.text = "Seu IP: " + ip
-            }
-        }.start()
     }
 
-    private fun getIP(): String {
-        return try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            for (intf in interfaces) {
-                val addrs = intf.inetAddresses
-                for (addr in addrs) {
-                    if (!addr.isLoopbackAddress && addr is InetAddress) {
-                        val ip = addr.hostAddress
-                        if (ip.indexOf(':') < 0 && !ip.startsWith("127")) {
-                            return ip
-                        }
+    private fun varrerRedes(txtStatus: TextView, txtResultado: TextView) {
+        Thread {
+            var encontrado = false
+
+            // Varre rede 1: 10.71.6.X
+            runOnUiThread {
+                txtStatus.text = "Varrendo rede 10.71.6.X..."
+            }
+
+            for (i in 1..254) {
+                if (testarIP("10.71.6." + i)) {
+                    encontrado = true
+                    runOnUiThread {
+                        txtResultado.text = "ENCONTRADO: 10.71.6." + i
+                        txtStatus.text = "Servidor encontrado!"
+                    }
+                    break
+                }
+                if (i % 50 == 0) {
+                    runOnUiThread {
+                        txtStatus.text = "Rede 1: " + i + "/254..."
                     }
                 }
             }
-            "Nao encontrado"
-        } catch (e: Exception) {
-            "Erro"
-        }
-    }
 
-    private fun varrer(txtStatus: TextView, txtResultado: TextView) {
-        val meuIP = getIP()
-        if (meuIP == "Nao encontrado" || meuIP == "Erro") {
-            txtStatus.text = "IP nao encontrado"
-            return
-        }
+            // Se não encontrou, varre rede 2: 10.10.254.X
+            if (!encontrado) {
+                runOnUiThread {
+                    txtStatus.text = "Varrendo rede 10.10.254.X..."
+                }
 
-        val partes = meuIP.split(".")
-        if (partes.size != 4) {
-            txtStatus.text = "IP invalido"
-            return
-        }
-
-        val base = partes[0] + "." + partes[1] + "." + partes[2]
-
-        Thread {
-            var achou = 0
-            for (i in 1..254) {
-                val ip = base + "." + i
-                try {
-                    val url = URL("http://" + ip + "/unitario.php")
-                    val conn = url.openConnection() as HttpURLConnection
-                    conn.connectTimeout = 500
-                    conn.readTimeout = 500
-                    val code = conn.responseCode
-
-                    if (code == 200) {
-                        achou++
+                for (i in 1..254) {
+                    if (testarIP("10.10.254." + i)) {
+                        encontrado = true
                         runOnUiThread {
-                            txtResultado.text = "IP: " + ip
-                            txtStatus.text = "ENCONTRADO!"
+                            txtResultado.text = "ENCONTRADO: 10.10.254." + i
+                            txtStatus.text = "Servidor encontrado!"
                         }
                         break
                     }
-                } catch (e: Exception) {
-                }
-
-                if (i % 50 == 0) {
-                    runOnUiThread {
-                        txtStatus.text = "Varrendo " + i + "/254..."
+                    if (i % 50 == 0) {
+                        runOnUiThread {
+                            txtStatus.text = "Rede 2: " + i + "/254..."
+                        }
                     }
                 }
             }
 
-            if (achou == 0) {
+            if (!encontrado) {
                 runOnUiThread {
-                    txtResultado.text = "Nao encontrado"
+                    txtStatus.text = "Nao encontrado em nenhuma rede"
+                    txtResultado.text = "Tente outros IPs manualmente"
                 }
             }
         }.start()
+    }
+
+    private fun testarIP(ip: String): Boolean {
+        return try {
+            val url = URL("http://" + ip + "/unitario.php")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.connectTimeout = 300
+            conn.readTimeout = 300
+            val code = conn.responseCode
+            code == 200
+        } catch (e: Exception) {
+            false
+        }
     }
 }
