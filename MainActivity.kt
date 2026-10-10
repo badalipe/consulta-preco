@@ -20,7 +20,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val txtStatus = TextView(this).apply {
-            text = "Toque no botão para varrer a rede"
+            text = "Toque para varrer"
             textSize = 20f
             setPadding(0, 0, 0, 40)
         }
@@ -33,12 +33,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         val btnVarredura = Button(this).apply {
-            text = "VARRER REDE E ENCONTRAR SERVIDOR"
-            textSize = 18f
+            text = "VARRER REDE"
             setOnClickListener {
                 txtStatus.text = "Varrendo..."
                 txtResultado.text = ""
-                varrerRede(txtStatus, txtResultado)
+                varrer(txtStatus, txtResultado)
             }
         }
 
@@ -48,18 +47,15 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(layout)
 
-        // Mostra IP atual
         Thread {
-            val ip = getMeuIP()
+            val ip = getIP()
             runOnUiThread {
-                txtStatus.text = "Seu IP: " + ip + "
-
-Toque para varrer a rede"
+                txtStatus.text = "Seu IP: " + ip
             }
         }.start()
     }
 
-    private fun getMeuIP(): String {
+    private fun getIP(): String {
         return try {
             val interfaces = NetworkInterface.getNetworkInterfaces()
             for (intf in interfaces) {
@@ -79,23 +75,23 @@ Toque para varrer a rede"
         }
     }
 
-    private fun varrerRede(txtStatus: TextView, txtResultado: TextView) {
-        val meuIP = getMeuIP()
+    private fun varrer(txtStatus: TextView, txtResultado: TextView) {
+        val meuIP = getIP()
         if (meuIP == "Nao encontrado" || meuIP == "Erro") {
-            txtStatus.text = "Nao consegui descobrir seu IP"
+            txtStatus.text = "IP nao encontrado"
             return
         }
 
         val partes = meuIP.split(".")
         if (partes.size != 4) {
-            txtStatus.text = "IP invalido: " + meuIP
+            txtStatus.text = "IP invalido"
             return
         }
 
         val base = partes[0] + "." + partes[1] + "." + partes[2]
 
         Thread {
-            var encontrados = 0
+            var achou = 0
             for (i in 1..254) {
                 val ip = base + "." + i
                 try {
@@ -106,10 +102,10 @@ Toque para varrer a rede"
                     val code = conn.responseCode
 
                     if (code == 200) {
-                        encontrados++
+                        achou++
                         runOnUiThread {
-                            txtResultado.text = "SERVIDOR ENCONTRADO:\n\n" + ip + "\n\nUse este IP!"
-                            txtStatus.text = "Encontrado!"
+                            txtResultado.text = "IP: " + ip
+                            txtStatus.text = "ENCONTRADO!"
                         }
                         break
                     }
@@ -123,10 +119,9 @@ Toque para varrer a rede"
                 }
             }
 
-            if (encontrados == 0) {
+            if (achou == 0) {
                 runOnUiThread {
-                    txtResultado.text = "Nenhum servidor encontrado"
-                    txtStatus.text = "Tente na rede do trabalho"
+                    txtResultado.text = "Nao encontrado"
                 }
             }
         }.start()
