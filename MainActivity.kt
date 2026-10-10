@@ -20,6 +20,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
@@ -33,16 +34,25 @@ class MainActivity : AppCompatActivity() {
         if (result.resultCode == RESULT_OK) {
             val codigo = result.data?.getStringExtra("codigo")
             codigo?.let {
+                // Atualiza a tela com o código escaneado
                 findViewById<TextView>(R.id.txtCodigo).text = it
-                buscarPreco(it)
-                carregarImagem(it)
+                findViewById<TextView>(R.id.txtNome).text = "Código detectado: $it"
+
+                // Tenta buscar (vai falhar em casa, mas não fecha o app)
+                try {
+                    buscarPreco(it)
+                    carregarImagem(it)
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Erro ao buscar: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
         }
+        // Se cancelou (resultCode != RESULT_OK), não faz nada - fica na tela principal
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)  // Abre DIRETO na tela principal
+        setContentView(R.layout.activity_main)
 
         // Botão ESCANEAR
         findViewById<Button>(R.id.btnScan).setOnClickListener {
@@ -57,8 +67,12 @@ class MainActivity : AppCompatActivity() {
                 val codigo = edt.text.toString()
                 if (codigo.isNotBlank()) {
                     findViewById<TextView>(R.id.txtCodigo).text = codigo
-                    buscarPreco(codigo)
-                    carregarImagem(codigo)
+                    try {
+                        buscarPreco(codigo)
+                        carregarImagem(codigo)
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Erro: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
                 }
                 true
             } else false
@@ -98,26 +112,31 @@ class MainActivity : AppCompatActivity() {
 
                     if (foto.isNotEmpty()) {
                         runOnUiThread {
-                            Glide.with(this)
-                                .asBitmap()
-                                .load(foto)
-                                .into(object : CustomTarget<Bitmap>() {
-                                    override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                                        // Efeito fumaça/netflix
-                                        val comFade = aplicarFade(resource)
-                                        findViewById<ImageView>(R.id.imgProduto).setImageBitmap(comFade)
-                                        findViewById<ImageView>(R.id.imgProduto).visibility = View.VISIBLE
+                            try {
+                                Glide.with(this@MainActivity)
+                                    .asBitmap()
+                                    .load(foto)
+                                    .into(object : CustomTarget<Bitmap>() {
+                                        override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                                            val comFade = aplicarFade(resource)
+                                            findViewById<ImageView>(R.id.imgProduto).setImageBitmap(comFade)
+                                            findViewById<ImageView>(R.id.imgProduto).visibility = View.VISIBLE
 
-                                        val blur = blurBitmap(resource, 25f)
-                                        findViewById<ImageView>(R.id.imgFundo).setImageBitmap(blur)
-                                        findViewById<ImageView>(R.id.imgFundo).visibility = View.VISIBLE
-                                    }
-                                    override fun onLoadCleared(placeholder: Drawable?) {}
-                                })
+                                            val blur = blurBitmap(resource, 25f)
+                                            findViewById<ImageView>(R.id.imgFundo).setImageBitmap(blur)
+                                            findViewById<ImageView>(R.id.imgFundo).visibility = View.VISIBLE
+                                        }
+                                        override fun onLoadCleared(placeholder: Drawable?) {}
+                                    })
+                            } catch (e: Exception) {
+                                // Ignora erro de imagem
+                            }
                         }
                     }
                 }
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                // Ignora erro de rede
+            }
         }.start()
     }
 
@@ -164,31 +183,39 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
 
-        val webView = WebView(this)
-        webView.settings.javaScriptEnabled = true
-        webView.settings.domStorageEnabled = true
-        webView.visibility = View.INVISIBLE
-        webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
-        (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
+        try {
+            val webView = WebView(this)
+            webView.settings.javaScriptEnabled = true
+            webView.settings.domStorageEnabled = true
+            webView.visibility = View.INVISIBLE
+            webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+            (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
 
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String) {
-                val js = "(function(){var c=document.querySelector('#btnBusca');if(c){c.value='$codigo';c.dispatchEvent(new Event('input',{bubbles:true}));if(window.jQuery){jQuery('#pesq_prod').click();}}})();"
-                webView.evaluateJavascript(js, null)
+            webView.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView, url: String) {
+                    val js = "(function(){var c=document.querySelector('#btnBusca');if(c){c.value='$codigo';c.dispatchEvent(new Event('input',{bubbles:true}));if(window.jQuery){jQuery('#pesq_prod').click();}}})();"
+                    webView.evaluateJavascript(js, null)
 
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    webView.evaluateJavascript("(function(){var r=document.getElementById('retorno');if(r&&r.innerText.trim().length>3){return r.innerText;}return '';})()") { res ->
-                        if (!res.isNullOrBlank() && res != "null") {
-                            processar(res.removeSurrounding("\""), codigo)
-                        } else {
-                            mostrarErro("Produto não encontrado")
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        webView.evaluateJavascript("(function(){var r=document.getElementById('retorno');if(r&&r.innerText.trim().length>3){return r.innerText;}return '';})()") { res ->
+                            if (!res.isNullOrBlank() && res != "null") {
+                                processar(res.removeSurrounding("\""), codigo)
+                            } else {
+                                mostrarErro("Produto não encontrado (verifique a rede)")
+                            }
                         }
-                    }
-                }, 2000)
-            }
-        }
+                    }, 2000)
+                }
 
-        webView.loadUrl("http://10.10.56.103/unitario.php")
+                override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
+                    mostrarErro("Sem conexão com servidor (use o WiFi da loja)")
+                }
+            }
+
+            webView.loadUrl("http://10.10.56.103/unitario.php")
+        } catch (e: Exception) {
+            mostrarErro("Erro: ${e.message}")
+        }
     }
 
     private fun processar(texto: String, codigo: String) {
@@ -222,6 +249,7 @@ class MainActivity : AppCompatActivity() {
     private fun mostrarErro(msg: String) {
         runOnUiThread {
             findViewById<TextView>(R.id.txtNome).text = msg
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
         }
     }
 }
