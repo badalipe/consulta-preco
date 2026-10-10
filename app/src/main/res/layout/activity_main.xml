@@ -5,7 +5,6 @@
     android:layout_height="match_parent"
     android:background="#0A0E27">
 
-    <!-- FUNDO DESFOCADO -->
     <ImageView
         android:id="@+id/imgFundo"
         android:layout_width="match_parent"
@@ -24,7 +23,6 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <!-- Cabeçalho -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -59,7 +57,6 @@
                 android:textSize="22sp" />
         </LinearLayout>
 
-        <!-- Nome e Código (acima da imagem) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -70,7 +67,7 @@
                 android:id="@+id/txtNome"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Biscoito Oreo Original"
+                android:text="Escaneie ou digite o código"
                 android:textColor="#FFFFFF"
                 android:textSize="26sp"
                 android:textStyle="bold" />
@@ -87,13 +84,12 @@
                 android:id="@+id/txtCodigo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="7896010501234"
+                android:text="-"
                 android:textColor="#FFFFFF"
                 android:textSize="18sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- IMAGEM CENTRAL COM EFEITO FUMAÇA -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -108,7 +104,6 @@
                 android:visibility="gone" />
         </FrameLayout>
 
-        <!-- PREÇO EM CARD AZUL -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -123,13 +118,12 @@
                 android:layout_height="wrap_content"
                 android:gravity="center"
                 android:padding="20dp"
-                android:text="R$ 4,99"
+                android:text="R$ 0,00"
                 android:textColor="#00FF00"
                 android:textSize="48sp"
                 android:textStyle="bold" />
         </androidx.cardview.widget.CardView>
 
-        <!-- 3 COLUNAS DE INFO -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -145,7 +139,7 @@
 
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📦" android:textSize="24sp" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Categoria" android:textColor="#888888" android:textSize="11sp" />
-                <TextView android:id="@+id/txtCategoria" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Biscoitos" android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" />
+                <TextView android:id="@+id/txtCategoria" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" />
             </LinearLayout>
 
             <LinearLayout
@@ -157,7 +151,7 @@
 
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚖️" android:textSize="24sp" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Peso/Quantidade" android:textColor="#888888" android:textSize="11sp" />
-                <TextView android:id="@+id/txtPeso" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="90 g" android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" />
+                <TextView android:id="@+id/txtPeso" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" />
             </LinearLayout>
 
             <LinearLayout
@@ -169,11 +163,10 @@
 
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="📅" android:textSize="24sp" />
                 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Validade" android:textColor="#888888" android:textSize="11sp" />
-                <TextView android:id="@+id/txtValidade" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="12/12/2025" android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" />
+                <TextView android:id="@+id/txtValidade" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="-" android:textColor="#FFFFFF" android:textSize="13sp" android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- CAMPO DE BUSCA -->
         <EditText
             android:id="@+id/edtCodigo"
             android:layout_width="match_parent"
@@ -191,24 +184,21 @@
             android:textColorHint="#555555"
             android:textSize="14sp" />
 
-        <!-- BOTÃO ESCANEAR GIGANTE -->
+        <!-- BOTÃO ESCANEAR CORRIGIDO -->
         <Button
             android:id="@+id/btnScan"
-            android:layout_width="120dp"
-            android:layout_height="120dp"
+            android:layout_width="130dp"
+            android:layout_height="130dp"
             android:layout_gravity="center_horizontal"
             android:layout_margin="16dp"
             android:backgroundTint="#0066FF"
-            android:text="📷
-
-ESCANEIA"
+            android:text="📷&#10;ESCANEAR"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="16sp"
             android:textStyle="bold"
             android:elevation="8dp"
-            app:cornerRadius="60dp" />
+            app:cornerRadius="65dp" />
 
-        <!-- RODAPÉ -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -220,20 +210,18 @@ ESCANEIA"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="🏠
-Início"
+                android:text="🏠 Início"
                 android:textColor="#FFFFFF"
-                android:textSize="11sp" />
+                android:textSize="12sp" />
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:gravity="center"
-                android:text="⚙️
-Configurações"
+                android:text="⚙️ Configurações"
                 android:textColor="#888888"
-                android:textSize="11sp" />
+                android:textSize="12sp" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>
