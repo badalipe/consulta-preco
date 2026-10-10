@@ -28,6 +28,8 @@ import com.bumptech.glide.Glide
 import com.bumptech.glide.request.target.CustomTarget
 import com.bumptech.glide.request.transition.Transition
 import java.net.HttpURLConnection
+import java.net.InetAddress
+import java.net.NetworkInterface
 import java.net.URL
 
 class MainActivity : AppCompatActivity() {
@@ -73,6 +75,107 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
             limparTela()
         }
+
+        // Botão para varrer rede
+        findViewById<TextView>(R.id.btnVoltar).setOnLongClickListener {
+            varrerRede()
+            true
+        }
+
+        // Mostra IP atual
+        mostrarMeuIP()
+    }
+
+    private fun mostrarMeuIP() {
+        Thread {
+            val ip = getMeuIP()
+            runOnUiThread {
+                Toast.makeText(this, "Seu IP: $ip
+Segure ← para varrer rede", Toast.LENGTH_LONG).show()
+            }
+        }.start()
+    }
+
+    private fun getMeuIP(): String {
+        return try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            for (intf in interfaces) {
+                val addrs = intf.inetAddresses
+                for (addr in addrs) {
+                    if (!addr.isLoopbackAddress && addr is InetAddress) {
+                        val ip = addr.hostAddress
+                        if (ip.indexOf(':') < 0 && !ip.startsWith("127")) {
+                            return ip
+                        }
+                    }
+                }
+            }
+            "Não encontrado"
+        } catch (e: Exception) {
+            "Erro"
+        }
+    }
+
+    private fun varrerRede() {
+        val meuIP = getMeuIP()
+        if (meuIP == "Não encontrado" || meuIP == "Erro") {
+            Toast.makeText(this, "Não consegui descobrir seu IP", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Extrai base do IP (ex: 10.7.70)
+        val partes = meuIP.split(".")
+        if (partes.size != 4) {
+            Toast.makeText(this, "IP inválido: $meuIP", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val base = "${partes[0]}.${partes[1]}.${partes[2]}"
+
+        findViewById<TextView>(R.id.txtNome).text = "Varrendo rede $base.1-254..."
+
+        Thread {
+            var encontrados = 0
+            for (i in 1..254) {
+                val ip = "$base.$i"
+                try {
+                    val url = URL("http://$ip/unitario.php")
+                    val conn = url.openConnection() as HttpURLConnection
+                    conn.connectTimeout = 500
+                    conn.readTimeout = 500
+                    val code = conn.responseCode
+
+                    if (code == 200) {
+                        encontrados++
+                        runOnUiThread {
+                            findViewById<TextView>(R.id.txtNome).text = 
+                                "✅ SERVIDOR ENCONTRADO:\n$ip\n\nUse este IP nas configurações!"
+                            Toast.makeText(this, 
+                                "Servidor encontrado: $ip", 
+                                Toast.LENGTH_LONG).show()
+                        }
+                        break
+                    }
+                } catch (e: Exception) {
+                    // Ignora hosts offline
+                }
+
+                // Atualiza progresso
+                if (i % 50 == 0) {
+                    runOnUiThread {
+                        findViewById<TextView>(R.id.txtNome).text = 
+                            "Varrendo... $i/254 ($encontrados encontrados)"
+                    }
+                }
+            }
+
+            if (encontrados == 0) {
+                runOnUiThread {
+                    findViewById<TextView>(R.id.txtNome).text = 
+                        "❌ Nenhum servidor encontrado na rede $base"
+                }
+            }
+        }.start()
     }
 
     private fun limparTela() {
@@ -170,19 +273,16 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
 
-        // Cancela timeout anterior se houver
         timeoutRunnable?.let { handler.removeCallbacks(it) }
 
-        // Define timeout de 10 segundos
         timeoutRunnable = Runnable {
             findViewById<TextView>(R.id.txtNome).text = "Tempo esgotado - servidor não responde"
-            Toast.makeText(this, "Servidor não responde. Verifique o IP da rede.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Servidor não responde. Segure ← para varrer rede.", Toast.LENGTH_LONG).show()
         }
         handler.postDelayed(timeoutRunnable!!, 10000)
 
         Thread {
             try {
-                // Testa conexão primeiro
                 val testUrl = URL("http://10.10.56.103/unitario.php")
                 val testConn = testUrl.openConnection() as HttpURLConnection
                 testConn.connectTimeout = 5000
@@ -197,7 +297,6 @@ class MainActivity : AppCompatActivity() {
                     return@Thread
                 }
 
-                // Se conectou, busca o produto
                 val webView = WebView(this@MainActivity)
                 webView.settings.javaScriptEnabled = true
                 webView.settings.domStorageEnabled = true
@@ -236,8 +335,8 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 runOnUiThread {
                     timeoutRunnable?.let { handler.removeCallbacks(it) }
-                    findViewById<TextView>(R.id.txtNome).text = "Erro: ${e.message}"
-                    Toast.makeText(this@MainActivity, "Erro de conexão: ${e.message}", Toast.LENGTH_LONG).show()
+                    findViewById<TextView>(R.id.txtNome).text = "Erro: Servidor não acessível"
+                    Toast.makeText(this@MainActivity, "Segure o botão ← para varrer a rede e encontrar o servidor", Toast.LENGTH_LONG).show()
                 }
             }
         }.start()
