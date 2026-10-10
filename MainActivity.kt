@@ -76,13 +76,11 @@ class MainActivity : AppCompatActivity() {
             limparTela()
         }
 
-        // Botão para varrer rede
         findViewById<TextView>(R.id.btnVoltar).setOnLongClickListener {
             varrerRede()
             true
         }
 
-        // Mostra IP atual
         mostrarMeuIP()
     }
 
@@ -90,8 +88,7 @@ class MainActivity : AppCompatActivity() {
         Thread {
             val ip = getMeuIP()
             runOnUiThread {
-                Toast.makeText(this, "Seu IP: $ip
-Segure ← para varrer rede", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Seu IP: " + ip, Toast.LENGTH_LONG).show()
             }
         }.start()
     }
@@ -110,7 +107,7 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
                     }
                 }
             }
-            "Não encontrado"
+            "Nao encontrado"
         } catch (e: Exception) {
             "Erro"
         }
@@ -118,28 +115,27 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
 
     private fun varrerRede() {
         val meuIP = getMeuIP()
-        if (meuIP == "Não encontrado" || meuIP == "Erro") {
-            Toast.makeText(this, "Não consegui descobrir seu IP", Toast.LENGTH_SHORT).show()
+        if (meuIP == "Nao encontrado" || meuIP == "Erro") {
+            Toast.makeText(this, "Nao consegui descobrir seu IP", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // Extrai base do IP (ex: 10.7.70)
         val partes = meuIP.split(".")
         if (partes.size != 4) {
-            Toast.makeText(this, "IP inválido: $meuIP", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "IP invalido: " + meuIP, Toast.LENGTH_SHORT).show()
             return
         }
 
-        val base = "${partes[0]}.${partes[1]}.${partes[2]}"
+        val base = partes[0] + "." + partes[1] + "." + partes[2]
 
-        findViewById<TextView>(R.id.txtNome).text = "Varrendo rede $base.1-254..."
+        findViewById<TextView>(R.id.txtNome).text = "Varrendo rede " + base + ".1-254..."
 
         Thread {
             var encontrados = 0
             for (i in 1..254) {
-                val ip = "$base.$i"
+                val ip = base + "." + i
                 try {
-                    val url = URL("http://$ip/unitario.php")
+                    val url = URL("http://" + ip + "/unitario.php")
                     val conn = url.openConnection() as HttpURLConnection
                     conn.connectTimeout = 500
                     conn.readTimeout = 500
@@ -149,22 +145,20 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
                         encontrados++
                         runOnUiThread {
                             findViewById<TextView>(R.id.txtNome).text = 
-                                "✅ SERVIDOR ENCONTRADO:\n$ip\n\nUse este IP nas configurações!"
+                                "SERVIDOR ENCONTRADO: " + ip
                             Toast.makeText(this, 
-                                "Servidor encontrado: $ip", 
+                                "Servidor encontrado: " + ip, 
                                 Toast.LENGTH_LONG).show()
                         }
                         break
                     }
                 } catch (e: Exception) {
-                    // Ignora hosts offline
                 }
 
-                // Atualiza progresso
                 if (i % 50 == 0) {
                     runOnUiThread {
                         findViewById<TextView>(R.id.txtNome).text = 
-                            "Varrendo... $i/254 ($encontrados encontrados)"
+                            "Varrendo... " + i + "/254 (" + encontrados + " encontrados)"
                     }
                 }
             }
@@ -172,14 +166,14 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
             if (encontrados == 0) {
                 runOnUiThread {
                     findViewById<TextView>(R.id.txtNome).text = 
-                        "❌ Nenhum servidor encontrado na rede $base"
+                        "Nenhum servidor encontrado na rede " + base
                 }
             }
         }.start()
     }
 
     private fun limparTela() {
-        findViewById<TextView>(R.id.txtNome).text = "Escaneie ou digite o código"
+        findViewById<TextView>(R.id.txtNome).text = "Escaneie ou digite o codigo"
         findViewById<TextView>(R.id.txtPreco).text = "R$ 0,00"
         findViewById<TextView>(R.id.txtCodigo).text = "-"
         findViewById<TextView>(R.id.txtCategoria).text = "-"
@@ -195,7 +189,7 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
 
         Thread {
             try {
-                val url = URL("https://world.openfoodfacts.org/api/v2/product/$codigo.json")
+                val url = URL("https://world.openfoodfacts.org/api/v2/product/" + codigo + ".json")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.connectTimeout = 5000
                 val json = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
@@ -276,8 +270,8 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
         timeoutRunnable?.let { handler.removeCallbacks(it) }
 
         timeoutRunnable = Runnable {
-            findViewById<TextView>(R.id.txtNome).text = "Tempo esgotado - servidor não responde"
-            Toast.makeText(this, "Servidor não responde. Segure ← para varrer rede.", Toast.LENGTH_LONG).show()
+            findViewById<TextView>(R.id.txtNome).text = "Tempo esgotado - servidor nao responde"
+            Toast.makeText(this, "Servidor nao responde. Segure a seta para varrer rede.", Toast.LENGTH_LONG).show()
         }
         handler.postDelayed(timeoutRunnable!!, 10000)
 
@@ -292,7 +286,7 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
                 if (responseCode != 200) {
                     runOnUiThread {
                         timeoutRunnable?.let { handler.removeCallbacks(it) }
-                        findViewById<TextView>(R.id.txtNome).text = "Servidor retornou erro $responseCode"
+                        findViewById<TextView>(R.id.txtNome).text = "Servidor retornou erro " + responseCode
                     }
                     return@Thread
                 }
@@ -308,7 +302,7 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
 
                     webView.webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView, url: String) {
-                            val js = "(function(){var c=document.querySelector('#btnBusca');if(c){c.value='$codigo';c.dispatchEvent(new Event('input',{bubbles:true}));if(window.jQuery){jQuery('#pesq_prod').click();}}})();"
+                            val js = "(function(){var c=document.querySelector('#btnBusca');if(c){c.value='" + codigo + "';c.dispatchEvent(new Event('input',{bubbles:true}));if(window.jQuery){jQuery('#pesq_prod').click();}}})();"
                             webView.evaluateJavascript(js, null)
 
                             handler.postDelayed({
@@ -316,9 +310,9 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
                                     timeoutRunnable?.let { handler.removeCallbacks(it) }
 
                                     if (!res.isNullOrBlank() && res != "null") {
-                                        processar(res.removeSurrounding("\""), codigo)
+                                        processar(res.removeSurrounding("""), codigo)
                                     } else {
-                                        findViewById<TextView>(R.id.txtNome).text = "Produto não encontrado no sistema"
+                                        findViewById<TextView>(R.id.txtNome).text = "Produto nao encontrado no sistema"
                                     }
                                 }
                             }, 3000)
@@ -326,7 +320,7 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
 
                         override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
                             timeoutRunnable?.let { handler.removeCallbacks(it) }
-                            findViewById<TextView>(R.id.txtNome).text = "Erro de conexão com servidor"
+                            findViewById<TextView>(R.id.txtNome).text = "Erro de conexao com servidor"
                         }
                     }
 
@@ -335,15 +329,16 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 runOnUiThread {
                     timeoutRunnable?.let { handler.removeCallbacks(it) }
-                    findViewById<TextView>(R.id.txtNome).text = "Erro: Servidor não acessível"
-                    Toast.makeText(this@MainActivity, "Segure o botão ← para varrer a rede e encontrar o servidor", Toast.LENGTH_LONG).show()
+                    findViewById<TextView>(R.id.txtNome).text = "Erro: Servidor nao acessivel"
+                    Toast.makeText(this@MainActivity, "Segure a seta para varrer a rede", Toast.LENGTH_LONG).show()
                 }
             }
         }.start()
     }
 
     private fun processar(texto: String, codigo: String) {
-        val linhas = texto.split("\n")
+        val linhas = texto.split("
+")
         var nome = ""
         var preco = ""
         var categoria = ""
@@ -353,9 +348,9 @@ Segure ← para varrer rede", Toast.LENGTH_LONG).show()
         for (linha in linhas) {
             val l = linha.trim()
             when {
-                l.contains("R$") || Regex("\\d+,\\d{2}").containsMatchIn(l) -> preco = l
-                l.contains("g", ignoreCase = true) && Regex("\\d+").containsMatchIn(l) -> peso = l
-                Regex("\\d{2}/\\d{2}/\\d{4}").containsMatchIn(l) -> validade = l
+                l.contains("R$") || Regex("\d+,\d{2}").containsMatchIn(l) -> preco = l
+                l.contains("g", ignoreCase = true) && Regex("\d+").containsMatchIn(l) -> peso = l
+                Regex("\d{2}/\d{2}/\d{4}").containsMatchIn(l) -> validade = l
                 l.length > 3 && nome.isEmpty() -> nome = l
             }
         }
