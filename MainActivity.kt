@@ -144,11 +144,8 @@ class MainActivity : AppCompatActivity() {
                     if (code == 200) {
                         encontrados++
                         runOnUiThread {
-                            findViewById<TextView>(R.id.txtNome).text = 
-                                "SERVIDOR ENCONTRADO: " + ip
-                            Toast.makeText(this, 
-                                "Servidor encontrado: " + ip, 
-                                Toast.LENGTH_LONG).show()
+                            findViewById<TextView>(R.id.txtNome).text = "SERVIDOR: " + ip
+                            Toast.makeText(this, "Servidor: " + ip, Toast.LENGTH_LONG).show()
                         }
                         break
                     }
@@ -157,23 +154,21 @@ class MainActivity : AppCompatActivity() {
 
                 if (i % 50 == 0) {
                     runOnUiThread {
-                        findViewById<TextView>(R.id.txtNome).text = 
-                            "Varrendo... " + i + "/254 (" + encontrados + " encontrados)"
+                        findViewById<TextView>(R.id.txtNome).text = "Varrendo " + i + "/254..."
                     }
                 }
             }
 
             if (encontrados == 0) {
                 runOnUiThread {
-                    findViewById<TextView>(R.id.txtNome).text = 
-                        "Nenhum servidor encontrado na rede " + base
+                    findViewById<TextView>(R.id.txtNome).text = "Nenhum servidor na rede " + base
                 }
             }
         }.start()
     }
 
     private fun limparTela() {
-        findViewById<TextView>(R.id.txtNome).text = "Escaneie ou digite o codigo"
+        findViewById<TextView>(R.id.txtNome).text = "Escaneie ou digite"
         findViewById<TextView>(R.id.txtPreco).text = "R$ 0,00"
         findViewById<TextView>(R.id.txtCodigo).text = "-"
         findViewById<TextView>(R.id.txtCategoria).text = "-"
@@ -270,8 +265,7 @@ class MainActivity : AppCompatActivity() {
         timeoutRunnable?.let { handler.removeCallbacks(it) }
 
         timeoutRunnable = Runnable {
-            findViewById<TextView>(R.id.txtNome).text = "Tempo esgotado - servidor nao responde"
-            Toast.makeText(this, "Servidor nao responde. Segure a seta para varrer rede.", Toast.LENGTH_LONG).show()
+            findViewById<TextView>(R.id.txtNome).text = "Tempo esgotado"
         }
         handler.postDelayed(timeoutRunnable!!, 10000)
 
@@ -286,18 +280,17 @@ class MainActivity : AppCompatActivity() {
                 if (responseCode != 200) {
                     runOnUiThread {
                         timeoutRunnable?.let { handler.removeCallbacks(it) }
-                        findViewById<TextView>(R.id.txtNome).text = "Servidor retornou erro " + responseCode
+                        findViewById<TextView>(R.id.txtNome).text = "Erro " + responseCode
                     }
                     return@Thread
                 }
 
-                val webView = WebView(this@MainActivity)
-                webView.settings.javaScriptEnabled = true
-                webView.settings.domStorageEnabled = true
-                webView.visibility = View.INVISIBLE
-                webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
-
                 runOnUiThread {
+                    val webView = WebView(this@MainActivity)
+                    webView.settings.javaScriptEnabled = true
+                    webView.settings.domStorageEnabled = true
+                    webView.visibility = View.INVISIBLE
+                    webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
                     (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
 
                     webView.webViewClient = object : WebViewClient() {
@@ -310,17 +303,12 @@ class MainActivity : AppCompatActivity() {
                                     timeoutRunnable?.let { handler.removeCallbacks(it) }
 
                                     if (!res.isNullOrBlank() && res != "null") {
-                                        processar(res.removeSurrounding("""), codigo)
+                                        mostrarResultado(res.removeSurrounding("""), codigo)
                                     } else {
-                                        findViewById<TextView>(R.id.txtNome).text = "Produto nao encontrado no sistema"
+                                        findViewById<TextView>(R.id.txtNome).text = "Nao encontrado"
                                     }
                                 }
                             }, 3000)
-                        }
-
-                        override fun onReceivedError(view: WebView, errorCode: Int, description: String, failingUrl: String) {
-                            timeoutRunnable?.let { handler.removeCallbacks(it) }
-                            findViewById<TextView>(R.id.txtNome).text = "Erro de conexao com servidor"
                         }
                     }
 
@@ -329,14 +317,13 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 runOnUiThread {
                     timeoutRunnable?.let { handler.removeCallbacks(it) }
-                    findViewById<TextView>(R.id.txtNome).text = "Erro: Servidor nao acessivel"
-                    Toast.makeText(this@MainActivity, "Segure a seta para varrer a rede", Toast.LENGTH_LONG).show()
+                    findViewById<TextView>(R.id.txtNome).text = "Servidor nao acessivel"
                 }
             }
         }.start()
     }
 
-    private fun processar(texto: String, codigo: String) {
+    private fun mostrarResultado(texto: String, codigo: String) {
         val linhas = texto.split("
 ")
         var nome = ""
@@ -349,7 +336,7 @@ class MainActivity : AppCompatActivity() {
             val l = linha.trim()
             when {
                 l.contains("R$") || Regex("\d+,\d{2}").containsMatchIn(l) -> preco = l
-                l.contains("g", ignoreCase = true) && Regex("\d+").containsMatchIn(l) -> peso = l
+                l.contains("g", true) && Regex("\d+").containsMatchIn(l) -> peso = l
                 Regex("\d{2}/\d{2}/\d{4}").containsMatchIn(l) -> validade = l
                 l.length > 3 && nome.isEmpty() -> nome = l
             }
