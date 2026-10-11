@@ -1,43 +1,27 @@
 package com.quickprice.app
 
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.Shader
-import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.renderscript.Allocation
-import android.renderscript.Element
-import android.renderscript.RenderScript
-import android.renderscript.ScriptIntrinsicBlur
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.bumptech.glide.Glide
-import com.bumptech.glide.request.target.CustomTarget
-import com.bumptech.glide.request.transition.Transition
 
 class MainActivity : AppCompatActivity() {
 
-    private val SITE_URL = "https://rmarket.cartazfacil.pro"
-    private val USUARIO = "rmarket07"
-    private val SENHA = "sup12345"
+    private val SITE = "https://rmarket.cartazfacil.pro"
+    private val USER = "rmarket07"
+    private val PASS = "sup12345"
 
-    private val handler = Handler(Looper.getMainLooper())
     private var webView: WebView? = null
-    private var tentativas = 0
+    private val handler = Handler(Looper.getMainLooper())
 
     private val scannerLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
@@ -46,8 +30,7 @@ class MainActivity : AppCompatActivity() {
             val codigo = result.data?.getStringExtra("codigo")
             codigo?.let {
                 findViewById<TextView>(R.id.txtCodigo).text = it
-                buscarProduto(it)
-                carregarImagem(it)
+                buscar(it)
             }
         }
     }
@@ -67,19 +50,17 @@ class MainActivity : AppCompatActivity() {
                 val codigo = edt.text.toString()
                 if (codigo.isNotBlank()) {
                     findViewById<TextView>(R.id.txtCodigo).text = codigo
-                    buscarProduto(codigo)
-                    carregarImagem(codigo)
+                    buscar(codigo)
                 }
                 true
             } else false
         }
 
         findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
-            limparTela()
+            limpar()
         }
 
         setupWebView()
-        fazerLogin()
     }
 
     private fun setupWebView() {
@@ -88,177 +69,76 @@ class MainActivity : AppCompatActivity() {
         webView?.settings?.domStorageEnabled = true
 
         CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
 
         webView?.visibility = View.INVISIBLE
         webView?.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
         (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
+
+        login()
     }
 
-    private fun fazerLogin() {
+    private fun login() {
         Toast.makeText(this, "Conectando...", Toast.LENGTH_SHORT).show()
 
         webView?.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 if (url.contains("index.php")) {
-                    val js = "(function(){var u=document.querySelector('input[name="usuario"],input[name="login"]');var p=document.querySelector('input[type="password"]');if(u&&p){u.value='" + USUARIO + "';p.value='" + SENHA + "';var f=p.closest('form');if(f)f.submit();}})();"
+                    // Login simples
+                    val js = "var u=document.querySelector('input[name="usuario"]');" +
+                             "var p=document.querySelector('input[type="password"]');" +
+                             "if(u&&p){u.value='" + USER + "';p.value='" + PASS + "';" +
+                             "var f=p.closest('form');if(f)f.submit();}"
                     view.evaluateJavascript(js, null)
                 } else if (url.contains("home.php") || url.contains("unitario.php")) {
-                    tentativas = 0
-                    Toast.makeText(this@MainActivity, "Conectado!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "OK!", Toast.LENGTH_SHORT).show()
                 }
             }
         }
 
-        webView?.loadUrl(SITE_URL + "/index.php")
+        webView?.loadUrl(SITE + "/index.php")
     }
 
-    private fun reconectar() {
-        tentativas++
-        if (tentativas > 5) {
-            Toast.makeText(this, "Maximo de tentativas", Toast.LENGTH_SHORT).show()
-            return
-        }
-        Toast.makeText(this, "Reconectando...", Toast.LENGTH_SHORT).show()
-        CookieManager.getInstance().removeAllCookies(null)
-        webView?.loadUrl(SITE_URL + "/index.php")
-    }
-
-    private fun limparTela() {
-        findViewById<TextView>(R.id.txtNome).text = "Escaneie ou digite"
-        findViewById<TextView>(R.id.txtPreco).text = "R$ 0,00"
-        findViewById<TextView>(R.id.txtCodigo).text = "-"
-        findViewById<TextView>(R.id.txtCategoria).text = "-"
-        findViewById<TextView>(R.id.txtPeso).text = "-"
-        findViewById<TextView>(R.id.txtValidade).text = "-"
-        findViewById<EditText>(R.id.edtCodigo).setText("")
-        findViewById<ImageView>(R.id.imgProduto).visibility = View.GONE
-        findViewById<ImageView>(R.id.imgFundo).visibility = View.GONE
-    }
-
-    private fun carregarImagem(codigo: String) {
-        if (codigo.isEmpty() || codigo == "-") return
-
-        Thread {
-            try {
-                val url = java.net.URL("https://world.openfoodfacts.org/api/v2/product/" + codigo + ".json")
-                val conn = url.openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 5000
-                val json = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
-
-                if (json.optInt("status", 0) == 1) {
-                    val prod = json.optJSONObject("product")
-                    val foto = prod?.optString("image_front_url").orEmpty()
-
-                    if (foto.isNotEmpty()) {
-                        runOnUiThread {
-                            try {
-                                Glide.with(this@MainActivity)
-                                    .asBitmap()
-                                    .load(foto)
-                                    .into(object : CustomTarget<Bitmap>() {
-                                        override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
-                                            val comFade = aplicarFade(resource)
-                                            findViewById<ImageView>(R.id.imgProduto).setImageBitmap(comFade)
-                                            findViewById<ImageView>(R.id.imgProduto).visibility = View.VISIBLE
-
-                                            val blur = blurBitmap(resource, 25f)
-                                            findViewById<ImageView>(R.id.imgFundo).setImageBitmap(blur)
-                                            findViewById<ImageView>(R.id.imgFundo).visibility = View.VISIBLE
-                                        }
-                                        override fun onLoadCleared(placeholder: Drawable?) {}
-                                    })
-                            } catch (e: Exception) { }
-                        }
-                    }
-                }
-            } catch (e: Exception) { }
-        }.start()
-    }
-
-    private fun aplicarFade(bitmap: Bitmap): Bitmap {
-        val w = bitmap.width
-        val h = bitmap.height
-        val output = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(output)
-        canvas.drawBitmap(bitmap, 0f, 0f, null)
-
-        val paint = Paint()
-        val fadeW = (w * 0.2f).toInt()
-
-        val gl = LinearGradient(0f, 0f, fadeW.toFloat(), 0f, Color.TRANSPARENT, Color.BLACK, Shader.TileMode.CLAMP)
-        paint.shader = gl
-        canvas.drawRect(0f, 0f, fadeW.toFloat(), h.toFloat(), paint)
-
-        val gr = LinearGradient((w - fadeW).toFloat(), 0f, w.toFloat(), 0f, Color.BLACK, Color.TRANSPARENT, Shader.TileMode.CLAMP)
-        paint.shader = gr
-        canvas.drawRect((w - fadeW).toFloat(), 0f, w.toFloat(), h.toFloat(), paint)
-
-        return output
-    }
-
-    private fun blurBitmap(bitmap: Bitmap, radius: Float): Bitmap {
-        val w = (bitmap.width * 0.5f).toInt()
-        val h = (bitmap.height * 0.5f).toInt()
-        val input = Bitmap.createScaledBitmap(bitmap, w, h, false)
-        val output = Bitmap.createBitmap(input)
-
-        val rs = RenderScript.create(this)
-        val blur = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs))
-        val tmpIn = Allocation.createFromBitmap(rs, input)
-        val tmpOut = Allocation.createFromBitmap(rs, output)
-        blur.setRadius(radius)
-        blur.forEach(tmpOut)
-        tmpOut.copyTo(output)
-
-        return output
-    }
-
-    private fun buscarProduto(codigo: String) {
-        if (codigo.isBlank() || codigo == "-") return
-
+    private fun buscar(codigo: String) {
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
 
         webView?.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 if (url.contains("unitario.php")) {
-                    val js = "(function(){var c=document.querySelector('#btnBusca');if(c){c.value='" + codigo + "';c.dispatchEvent(new Event('input',{bubbles:true}));if(window.jQuery){jQuery('#pesq_prod').click();}}})();"
+                    val js = "var c=document.querySelector('#btnBusca');" +
+                             "if(c){c.value='" + codigo + "';" +
+                             "c.dispatchEvent(new Event('input',{bubbles:true}));" +
+                             "if(window.jQuery){jQuery('#pesq_prod').click();}}"
                     view.evaluateJavascript(js, null)
 
                     handler.postDelayed({
-                        view.evaluateJavascript("(function(){var r=document.getElementById('retorno');if(r&&r.innerText.trim().length>3){return r.innerText;}return '';})()") { res ->
-                            if (!res.isNullOrBlank() && res != "null") {
-                                mostrarResultado(res.removeSurrounding("""), codigo)
-                            } else {
-                                findViewById<TextView>(R.id.txtNome).text = "Nao encontrado"
-                            }
+                        view.evaluateJavascript(
+                            "var r=document.getElementById('retorno');" +
+                            "if(r&&r.innerText.trim().length>3){r.innerText;}else{'';}"
+                        ) { res ->
+                            mostrar(res ?: "", codigo)
                         }
                     }, 4000)
                 } else if (url.contains("index.php")) {
-                    reconectar()
+                    login()
                 }
             }
         }
 
-        webView?.loadUrl(SITE_URL + "/unitario.php")
+        webView?.loadUrl(SITE + "/unitario.php")
     }
 
-    private fun mostrarResultado(texto: String, codigo: String) {
+    private fun mostrar(texto: String, codigo: String) {
         val linhas = texto.split("
 ")
         var nome = ""
         var preco = ""
-        var categoria = ""
-        var peso = ""
-        var validade = ""
 
         for (linha in linhas) {
             val l = linha.trim()
-            when {
-                l.contains("R$") || Regex("\d+,\d{2}").containsMatchIn(l) -> preco = l
-                l.contains("g", true) && Regex("\d+").containsMatchIn(l) -> peso = l
-                Regex("\d{2}/\d{2}/\d{4}").containsMatchIn(l) -> validade = l
-                l.length > 3 && nome.isEmpty() -> nome = l
+            if (l.contains("R$") || Regex("\d+,\d{2}").containsMatchIn(l)) {
+                preco = l
+            } else if (l.length > 3 && nome.isEmpty()) {
+                nome = l
             }
         }
 
@@ -266,9 +146,16 @@ class MainActivity : AppCompatActivity() {
             findViewById<TextView>(R.id.txtNome).text = nome.ifEmpty { "Produto" }
             findViewById<TextView>(R.id.txtPreco).text = preco.ifEmpty { "R$ -" }
             findViewById<TextView>(R.id.txtCodigo).text = codigo
-            findViewById<TextView>(R.id.txtCategoria).text = categoria.ifEmpty { "-" }
-            findViewById<TextView>(R.id.txtPeso).text = peso.ifEmpty { "-" }
-            findViewById<TextView>(R.id.txtValidade).text = validade.ifEmpty { "-" }
         }
+    }
+
+    private fun limpar() {
+        findViewById<TextView>(R.id.txtNome).text = "Escaneie ou digite"
+        findViewById<TextView>(R.id.txtPreco).text = "R$ 0,00"
+        findViewById<TextView>(R.id.txtCodigo).text = "-"
+        findViewById<TextView>(R.id.txtCategoria).text = "-"
+        findViewById<TextView>(R.id.txtPeso).text = "-"
+        findViewById<TextView>(R.id.txtValidade).text = "-"
+        findViewById<EditText>(R.id.edtCodigo).setText("")
     }
 }
