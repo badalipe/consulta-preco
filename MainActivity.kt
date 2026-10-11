@@ -37,6 +37,10 @@ class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var timeoutRunnable: Runnable? = null
+    private var reconexaoRunnable: Runnable? = null
+    private var webViewPrincipal: WebView? = null
+    private var tentativasReconexao = 0
+    private var maxTentativas = 10
 
     private val scannerLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
@@ -77,8 +81,100 @@ class MainActivity : AppCompatActivity() {
             limparTela()
         }
 
-        // Faz login ao abrir
-        fazerLogin()
+        // Inicia sistema de reconexão automática
+        iniciarSistemaReconexao()
+    }
+
+    private fun iniciarSistemaReconexao() {
+        Toast.makeText(this, "Sistema de reconexao ativo", Toast.LENGTH_SHORT).show()
+
+        // WebView principal que fica logado
+        webViewPrincipal = WebView(this)
+        webViewPrincipal?.settings?.javaScriptEnabled = true
+        webViewPrincipal?.settings?.domStorageEnabled = true
+
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webViewPrincipal, true)
+
+        webViewPrincipal?.visibility = View.INVISIBLE
+        webViewPrincipal?.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+        (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webViewPrincipal)
+
+        webViewPrincipal?.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                if (url.contains("index.php") || url.contains("login")) {
+                    // Sessao morreu, fazer login
+                    fazerLoginNoWebView(view)
+                } else if (url.contains("home.php") || url.contains("unitario.php")) {
+                    // Sessao OK
+                    tentativasReconexao = 0
+                    Toast.makeText(this@MainActivity, "Conectado!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // Faz login inicial
+        fazerLoginInicial()
+
+        // Verifica sessao a cada 30 segundos
+        iniciarVerificacaoSessao()
+    }
+
+    private fun fazerLoginInicial() {
+        webViewPrincipal?.loadUrl(SITE_URL + "/index.php")
+    }
+
+    private fun fazerLoginNoWebView(webView: WebView) {
+        val js = """(function(){
+            var u = document.querySelector('input[name="usuario"], input[name="login"]');
+            var p = document.querySelector('input[type="password"]');
+            if (u && p) {
+                u.value = '$USUARIO';
+                p.value = '$SENHA';
+                var f = p.closest('form');
+                if (f) f.submit();
+            }
+        })();"""
+        webView.evaluateJavascript(js, null)
+    }
+
+    private fun iniciarVerificacaoSessao() {
+        reconexaoRunnable = object : Runnable {
+            override fun run() {
+                verificarSessao()
+                handler.postDelayed(this, 30000) // Verifica a cada 30 segundos
+            }
+        }
+        handler.post(reconexaoRunnable!!)
+    }
+
+    private fun verificarSessao() {
+        webViewPrincipal?.evaluateJavascript(
+            """(function(){
+                if (document.body && document.body.innerText.includes('usuario') && document.body.innerText.includes('senha')) {
+                    return 'SESSAO_MORTA';
+                }
+                return 'SESSAO_OK';
+            })();"""
+        ) { result ->
+            if (result != null && result.contains("SESSAO_MORTA")) {
+                reconectar()
+            }
+        }
+    }
+
+    private fun reconectar() {
+        if (tentativasReconexao >= maxTentativas) {
+            Toast.makeText(this, "Maximo de tentativas. Toque em SCAN para reconectar.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        tentativasReconexao++
+        Toast.makeText(this, "Reconectando... (tentativa " + tentativasReconexao + ")", Toast.LENGTH_SHORT).show()
+
+        // Limpa cookies e faz login novamente
+        CookieManager.getInstance().removeAllCookies(null)
+        webViewPrincipal?.loadUrl(SITE_URL + "/index.php")
     }
 
     private fun limparTela() {
@@ -91,44 +187,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<EditText>(R.id.edtCodigo).setText("")
         findViewById<ImageView>(R.id.imgProduto).visibility = View.GONE
         findViewById<ImageView>(R.id.imgFundo).visibility = View.GONE
-    }
-
-    private fun fazerLogin() {
-        Toast.makeText(this, "Fazendo login...", Toast.LENGTH_SHORT).show()
-
-        val webView = WebView(this)
-        webView.settings.javaScriptEnabled = true
-        webView.settings.domStorageEnabled = true
-
-        CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
-
-        webView.visibility = View.INVISIBLE
-        webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
-        (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
-
-        webView.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String) {
-                if (url.contains("index.php")) {
-                    // Preenche login
-                    val js = """(function(){
-                        var u = document.querySelector('input[name="usuario"], input[name="login"]');
-                        var p = document.querySelector('input[type="password"]');
-                        if (u && p) {
-                            u.value = '$USUARIO';
-                            p.value = '$SENHA';
-                            var f = p.closest('form');
-                            if (f) f.submit();
-                        }
-                    })();"""
-                    webView.evaluateJavascript(js, null)
-                } else if (url.contains("home.php") || url.contains("unitario.php")) {
-                    Toast.makeText(this@MainActivity, "Login OK!", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
-        webView.loadUrl(SITE_URL + "/index.php")
     }
 
     private fun carregarImagem(codigo: String) {
@@ -220,22 +278,12 @@ class MainActivity : AppCompatActivity() {
         }
         handler.postDelayed(timeoutRunnable!!, 15000)
 
-        // Vai para unitario.php e injeta o código
-        val webView = WebView(this)
-        webView.settings.javaScriptEnabled = true
-        webView.settings.domStorageEnabled = true
-        webView.visibility = View.INVISIBLE
-        webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+        // Usa o WebView principal já logado
+        webViewPrincipal?.loadUrl(SITE_URL + "/unitario.php")
 
-        CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
-
-        (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
-
-        webView.webViewClient = object : WebViewClient() {
+        webViewPrincipal?.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 if (url.contains("unitario.php")) {
-                    // Injeta o código e busca
                     val js = """(function(){
                         var c = document.querySelector('#btnBusca');
                         if (c) {
@@ -246,11 +294,10 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     })();"""
-                    webView.evaluateJavascript(js, null)
+                    view.evaluateJavascript(js, null)
 
-                    // Aguarda resultado
                     handler.postDelayed({
-                        webView.evaluateJavascript(
+                        view.evaluateJavascript(
                             """(function(){
                                 var r = document.getElementById('retorno');
                                 if (r && r.innerText.trim().length > 3) {
@@ -268,23 +315,11 @@ class MainActivity : AppCompatActivity() {
                         }
                     }, 4000)
                 } else if (url.contains("index.php")) {
-                    // Faz login se caiu na tela de login
-                    val js = """(function(){
-                        var u = document.querySelector('input[name="usuario"], input[name="login"]');
-                        var p = document.querySelector('input[type="password"]');
-                        if (u && p) {
-                            u.value = '$USUARIO';
-                            p.value = '$SENHA';
-                            var f = p.closest('form');
-                            if (f) f.submit();
-                        }
-                    })();"""
-                    webView.evaluateJavascript(js, null)
+                    // Sessao morreu durante a busca, reconecta
+                    fazerLoginNoWebView(view)
                 }
             }
         }
-
-        webView.loadUrl(SITE_URL + "/unitario.php")
     }
 
     private fun mostrarResultado(texto: String, codigo: String) {
@@ -319,5 +354,6 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         timeoutRunnable?.let { handler.removeCallbacks(it) }
+        reconexaoRunnable?.let { handler.removeCallbacks(it) }
     }
 }
