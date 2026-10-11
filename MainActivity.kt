@@ -1,5 +1,6 @@
 package com.quickprice.app
 
+import android.content.Intent
 import android.os.Bundle
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -13,6 +14,19 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Botão SCAN - Abre ScannerActivity
+        findViewById<Button>(R.id.btnScan).setOnClickListener {
+            val intent = Intent(this, ScannerActivity::class.java)
+            startActivity(intent)
+        }
+
+        // Botão voltar
+        findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
+            findViewById<TextView>(R.id.txtNome).text = "Pronto"
+            findViewById<TextView>(R.id.txtPreco).text = "R$ 0,00"
+        }
+
+        // WebView para login (invisível)
         val wv = WebView(this)
         wv.settings.javaScriptEnabled = true
         wv.settings.domStorageEnabled = true
@@ -26,14 +40,6 @@ class MainActivity : AppCompatActivity() {
                     view.evaluateJavascript("document.forms[0].submit()", null)
                 }
             }
-        }
-
-        findViewById<Button>(R.id.btnScan).setOnClickListener {
-            wv.loadUrl("https://rmarket.cartazfacil.pro/unitario.php")
-        }
-
-        findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
-            findViewById<TextView>(R.id.txtNome).text = "OK"
         }
 
         wv.loadUrl("https://rmarket.cartazfacil.pro/index.php")
