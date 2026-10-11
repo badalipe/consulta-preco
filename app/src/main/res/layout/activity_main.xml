@@ -10,7 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="centerCrop"
-        android:alpha="0.2"
+        android:alpha="0.25"
         android:visibility="gone" />
 
     <View
@@ -23,6 +23,7 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
+        <!-- Cabeçalho -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -57,6 +58,7 @@
                 android:textSize="22sp" />
         </LinearLayout>
 
+        <!-- Nome e Código -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -90,6 +92,7 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
+        <!-- Imagem Central -->
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -104,6 +107,7 @@
                 android:visibility="gone" />
         </FrameLayout>
 
+        <!-- Preço -->
         <androidx.cardview.widget.CardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -124,6 +128,7 @@
                 android:textStyle="bold" />
         </androidx.cardview.widget.CardView>
 
+        <!-- 3 Colunas -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -167,6 +172,7 @@
             </LinearLayout>
         </LinearLayout>
 
+        <!-- Campo de busca -->
         <EditText
             android:id="@+id/edtCodigo"
             android:layout_width="match_parent"
@@ -174,7 +180,6 @@
             android:layout_marginHorizontal="20dp"
             android:layout_marginTop="16dp"
             android:background="#1A1A2E"
-            android:drawableStart="@android:drawable/ic_menu_search"
             android:hint="Digite o código de barras"
             android:imeOptions="actionSearch"
             android:inputType="number"
@@ -184,22 +189,23 @@
             android:textColorHint="#555555"
             android:textSize="14sp" />
 
-        <!-- BOTÃO ESCANEAR CORRIGIDO - Texto menor -->
+        <!-- Botão ESCANEIA -->
         <Button
             android:id="@+id/btnScan"
-            android:layout_width="110dp"
-            android:layout_height="110dp"
+            android:layout_width="130dp"
+            android:layout_height="130dp"
             android:layout_gravity="center_horizontal"
-            android:layout_margin="14dp"
+            android:layout_margin="16dp"
             android:backgroundTint="#0066FF"
             android:text="📷
-SCAN"
+ESCANEIA"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="16sp"
             android:textStyle="bold"
             android:elevation="8dp"
-            app:cornerRadius="55dp" />
+            app:cornerRadius="65dp" />
 
+        <!-- Rodapé -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="52dp"
