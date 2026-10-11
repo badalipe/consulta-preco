@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
-import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
@@ -19,60 +18,49 @@ class MainActivity : AppCompatActivity() {
     private val SITE = "https://rmarket.cartazfacil.pro"
     private val USER = "rmarket07"
     private val PASS = "sup12345"
-
-    private var webView: WebView? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var wv: WebView? = null
 
-    private val scannerLauncher = registerForActivityResult(
+    private val scanLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val codigo = result.data?.getStringExtra("codigo")
-            codigo?.let {
-                findViewById<TextView>(R.id.txtCodigo).text = it
-                buscar(it)
-            }
+    ) { r ->
+        if (r.resultCode == RESULT_OK) {
+            val c = r.data?.getStringExtra("codigo")
+            c?.let { buscar(it) }
         }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun onCreate(s: Bundle?) {
+        super.onCreate(s)
         setContentView(R.layout.activity_main)
 
         findViewById<Button>(R.id.btnScan).setOnClickListener {
-            val intent = Intent(this, ScannerActivity::class.java)
-            scannerLauncher.launch(intent)
+            scanLauncher.launch(Intent(this, ScannerActivity::class.java))
         }
 
-        val edt = findViewById<EditText>(R.id.edtCodigo)
-        edt.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
-                val codigo = edt.text.toString()
-                if (codigo.isNotBlank()) {
-                    findViewById<TextView>(R.id.txtCodigo).text = codigo
-                    buscar(codigo)
-                }
+        findViewById<EditText>(R.id.edtCodigo).setOnEditorActionListener { v, id, _ ->
+            if (id == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                val c = v.text.toString()
+                if (c.isNotBlank()) buscar(c)
                 true
             } else false
         }
 
         findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
-            limpar()
+            findViewById<TextView>(R.id.txtNome).text = "Pronto"
+            findViewById<TextView>(R.id.txtPreco).text = "R$ 0,00"
         }
 
-        setupWebView()
+        setup()
     }
 
-    private fun setupWebView() {
-        webView = WebView(this)
-        webView?.settings?.javaScriptEnabled = true
-        webView?.settings?.domStorageEnabled = true
-
-        CookieManager.getInstance().setAcceptCookie(true)
-
-        webView?.visibility = View.INVISIBLE
-        webView?.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
-        (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
+    private fun setup() {
+        wv = WebView(this)
+        wv?.settings?.javaScriptEnabled = true
+        wv?.settings?.domStorageEnabled = true
+        wv?.visibility = View.INVISIBLE
+        wv?.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+        (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(wv)
 
         login()
     }
@@ -80,82 +68,68 @@ class MainActivity : AppCompatActivity() {
     private fun login() {
         Toast.makeText(this, "Conectando...", Toast.LENGTH_SHORT).show()
 
-        webView?.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String) {
-                if (url.contains("index.php")) {
-                    // Login simples
-                    val js = "var u=document.querySelector('input[name="usuario"]');" +
-                             "var p=document.querySelector('input[type="password"]');" +
-                             "if(u&&p){u.value='" + USER + "';p.value='" + PASS + "';" +
-                             "var f=p.closest('form');if(f)f.submit();}"
-                    view.evaluateJavascript(js, null)
-                } else if (url.contains("home.php") || url.contains("unitario.php")) {
-                    Toast.makeText(this@MainActivity, "OK!", Toast.LENGTH_SHORT).show()
+        wv?.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(v: WebView, url: String) {
+                when {
+                    url.contains("index.php") -> {
+                        val js = "var u=document.querySelector('input[name=\\"usuario\\"]');" +
+                                 "var p=document.querySelector('input[type=\\"password\\"]');" +
+                                 "if(u&&p){u.value='" + USER + "';p.value='" + PASS + "';" +
+                                 "var f=p.closest('form');if(f)f.submit();}"
+                        v.evaluateJavascript(js, null)
+                    }
+                    url.contains("home.php") || url.contains("unitario.php") -> {
+                        Toast.makeText(this@MainActivity, "OK!", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
-
-        webView?.loadUrl(SITE + "/index.php")
+        wv?.loadUrl(SITE + "/index.php")
     }
 
-    private fun buscar(codigo: String) {
+    private fun buscar(cod: String) {
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
+        findViewById<TextView>(R.id.txtCodigo).text = cod
 
-        webView?.webViewClient = object : WebViewClient() {
-            override fun onPageFinished(view: WebView, url: String) {
-                if (url.contains("unitario.php")) {
-                    val js = "var c=document.querySelector('#btnBusca');" +
-                             "if(c){c.value='" + codigo + "';" +
-                             "c.dispatchEvent(new Event('input',{bubbles:true}));" +
-                             "if(window.jQuery){jQuery('#pesq_prod').click();}}"
-                    view.evaluateJavascript(js, null)
+        wv?.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(v: WebView, url: String) {
+                when {
+                    url.contains("unitario.php") -> {
+                        val js = "var c=document.querySelector('#btnBusca');" +
+                                 "if(c){c.value='" + cod + "';" +
+                                 "c.dispatchEvent(new Event('input',{bubbles:true}));" +
+                                 "if(window.jQuery){jQuery('#pesq_prod').click();}}"
+                        v.evaluateJavascript(js, null)
 
-                    handler.postDelayed({
-                        view.evaluateJavascript(
-                            "var r=document.getElementById('retorno');" +
-                            "if(r&&r.innerText.trim().length>3){r.innerText;}else{'';}"
-                        ) { res ->
-                            mostrar(res ?: "", codigo)
-                        }
-                    }, 4000)
-                } else if (url.contains("index.php")) {
-                    login()
+                        handler.postDelayed({
+                            v.evaluateJavascript(
+                                "var r=document.getElementById('retorno');" +
+                                "if(r&&r.innerText.trim().length>3){r.innerText;}else{'';}"
+                            ) { res ->
+                                mostrar(res ?: "", cod)
+                            }
+                        }, 4000)
+                    }
+                    url.contains("index.php") -> login()
                 }
             }
         }
-
-        webView?.loadUrl(SITE + "/unitario.php")
+        wv?.loadUrl(SITE + "/unitario.php")
     }
 
-    private fun mostrar(texto: String, codigo: String) {
-        val linhas = texto.split("
+    private fun mostrar(t: String, c: String) {
+        val lines = t.split("
 ")
-        var nome = ""
-        var preco = ""
-
-        for (linha in linhas) {
-            val l = linha.trim()
-            if (l.contains("R$") || Regex("\d+,\d{2}").containsMatchIn(l)) {
-                preco = l
-            } else if (l.length > 3 && nome.isEmpty()) {
-                nome = l
-            }
+        var n = ""
+        var p = ""
+        for (l in lines) {
+            val x = l.trim()
+            if (x.contains("R$") || x.matches(Regex(".*\\d+,\\d{2}.*"))) p = x
+            else if (x.length > 3 && n.isEmpty()) n = x
         }
-
         runOnUiThread {
-            findViewById<TextView>(R.id.txtNome).text = nome.ifEmpty { "Produto" }
-            findViewById<TextView>(R.id.txtPreco).text = preco.ifEmpty { "R$ -" }
-            findViewById<TextView>(R.id.txtCodigo).text = codigo
+            findViewById<TextView>(R.id.txtNome).text = n.ifEmpty { "Produto" }
+            findViewById<TextView>(R.id.txtPreco).text = p.ifEmpty { "R$ -" }
         }
-    }
-
-    private fun limpar() {
-        findViewById<TextView>(R.id.txtNome).text = "Escaneie ou digite"
-        findViewById<TextView>(R.id.txtPreco).text = "R$ 0,00"
-        findViewById<TextView>(R.id.txtCodigo).text = "-"
-        findViewById<TextView>(R.id.txtCategoria).text = "-"
-        findViewById<TextView>(R.id.txtPeso).text = "-"
-        findViewById<TextView>(R.id.txtValidade).text = "-"
-        findViewById<EditText>(R.id.edtCodigo).setText("")
     }
 }
