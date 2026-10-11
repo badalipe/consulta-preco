@@ -1,135 +1,323 @@
 package com.quickprice.app
 
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
+import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.renderscript.Allocation
+import android.renderscript.Element
+import android.renderscript.RenderScript
+import android.renderscript.ScriptIntrinsicBlur
+import android.view.View
+import android.webkit.CookieManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Button
-import android.widget.ScrollView
+import android.widget.EditText
+import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.net.HttpURLConnection
-import java.net.URL
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 
 class MainActivity : AppCompatActivity() {
 
-    private val SERVIDOR = "10.72.6.23"
+    private val SITE_URL = "https://rmarket.cartazfacil.pro"
+    private val USUARIO = "rmarket07"
+    private val SENHA = "sup12345"
 
-    private val caminhos = listOf(
-        "/",
-        "/index.html",
-        "/index.php",
-        "/home.html",
-        "/home.php",
-        "/menu.html",
-        "/menu.php",
-        "/produto.html",
-        "/produto.php",
-        "/produtos.html",
-        "/produtos.php",
-        "/busca.html",
-        "/busca.php",
-        "/consulta.html",
-        "/consulta.php",
-        "/preco.html",
-        "/preco.php",
-        "/precos.html",
-        "/precos.php",
-        "/api/produto.php",
-        "/api/produtos.php",
-        "/api/busca.php",
-        "/api/consulta.php",
-        "/api/preco.php",
-        "/sistema/",
-        "/sistema/index.php",
-        "/cartaz/",
-        "/cartaz/index.php",
-        "/consulta/index.php",
-        "/preco/index.php",
-        "/sweda/",
-        "/sweda/index.php",
-        "/ecd/",
-        "/ecd/index.php"
-    )
+    private val handler = Handler(Looper.getMainLooper())
+    private var timeoutRunnable: Runnable? = null
+
+    private val scannerLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val codigo = result.data?.getStringExtra("codigo")
+            codigo?.let {
+                findViewById<TextView>(R.id.txtCodigo).text = it
+                buscarProduto(it)
+                carregarImagem(it)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        val layout = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(30, 60, 30, 30)
+        findViewById<Button>(R.id.btnScan).setOnClickListener {
+            val intent = Intent(this, ScannerActivity::class.java)
+            scannerLauncher.launch(intent)
         }
 
-        val txtStatus = TextView(this).apply {
-            text = "Toque para descobrir caminhos no servidor"
-            textSize = 18f
-            setPadding(0, 0, 0, 20)
+        val edt = findViewById<EditText>(R.id.edtCodigo)
+        edt.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                val codigo = edt.text.toString()
+                if (codigo.isNotBlank()) {
+                    findViewById<TextView>(R.id.txtCodigo).text = codigo
+                    buscarProduto(codigo)
+                    carregarImagem(codigo)
+                }
+                true
+            } else false
         }
 
-        val btnTestar = Button(this).apply {
-            text = "DESCOBRIR CAMINHOS"
-            setOnClickListener {
-                txtResultado.text = ""
-                descobrir(txtStatus)
-            }
+        findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
+            limparTela()
         }
 
-        val scrollView = ScrollView(this)
-        txtResultado = TextView(this).apply {
-            text = ""
-            textSize = 14f
-            setPadding(20, 20, 20, 20)
-        }
-        scrollView.addView(txtResultado)
-
-        layout.addView(txtStatus)
-        layout.addView(btnTestar)
-        layout.addView(scrollView)
-
-        setContentView(layout)
+        // Faz login ao abrir
+        fazerLogin()
     }
 
-    private lateinit var txtResultado: TextView
+    private fun limparTela() {
+        findViewById<TextView>(R.id.txtNome).text = "Escaneie ou digite"
+        findViewById<TextView>(R.id.txtPreco).text = "R$ 0,00"
+        findViewById<TextView>(R.id.txtCodigo).text = "-"
+        findViewById<TextView>(R.id.txtCategoria).text = "-"
+        findViewById<TextView>(R.id.txtPeso).text = "-"
+        findViewById<TextView>(R.id.txtValidade).text = "-"
+        findViewById<EditText>(R.id.edtCodigo).setText("")
+        findViewById<ImageView>(R.id.imgProduto).visibility = View.GONE
+        findViewById<ImageView>(R.id.imgFundo).visibility = View.GONE
+    }
 
-    private fun descobrir(txtStatus: TextView) {
+    private fun fazerLogin() {
+        Toast.makeText(this, "Fazendo login...", Toast.LENGTH_SHORT).show()
+
+        val webView = WebView(this)
+        webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+
+        webView.visibility = View.INVISIBLE
+        webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+        (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                if (url.contains("index.php")) {
+                    // Preenche login
+                    val js = """(function(){
+                        var u = document.querySelector('input[name="usuario"], input[name="login"]');
+                        var p = document.querySelector('input[type="password"]');
+                        if (u && p) {
+                            u.value = '$USUARIO';
+                            p.value = '$SENHA';
+                            var f = p.closest('form');
+                            if (f) f.submit();
+                        }
+                    })();"""
+                    webView.evaluateJavascript(js, null)
+                } else if (url.contains("home.php") || url.contains("unitario.php")) {
+                    Toast.makeText(this@MainActivity, "Login OK!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        webView.loadUrl(SITE_URL + "/index.php")
+    }
+
+    private fun carregarImagem(codigo: String) {
+        if (codigo.isEmpty() || codigo == "-") return
+
         Thread {
-            var encontrados = 0
+            try {
+                val url = java.net.URL("https://world.openfoodfacts.org/api/v2/product/" + codigo + ".json")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 5000
+                val json = org.json.JSONObject(conn.inputStream.bufferedReader().readText())
 
-            for (caminho in caminhos) {
-                val url = "http://" + SERVIDOR + caminho
-                try {
-                    val conn = URL(url).openConnection() as HttpURLConnection
-                    conn.connectTimeout = 1000
-                    conn.readTimeout = 1000
-                    val code = conn.responseCode
+                if (json.optInt("status", 0) == 1) {
+                    val prod = json.optJSONObject("product")
+                    val foto = prod?.optString("image_front_url").orEmpty()
 
-                    if (code == 200) {
-                        encontrados++
-                        val html = conn.inputStream.bufferedReader().readText()
-                        val titulo = if (html.length > 100) html.substring(0, 100) else html
-
+                    if (foto.isNotEmpty()) {
                         runOnUiThread {
-                            txtResultado.append("ENCONTRADO: " + caminho + "
-")
-                            txtResultado.append("Status: " + code + "
-")
-                            txtResultado.append("Preview: " + titulo + "
+                            try {
+                                Glide.with(this@MainActivity)
+                                    .asBitmap()
+                                    .load(foto)
+                                    .into(object : CustomTarget<Bitmap>() {
+                                        override fun onResourceReady(resource: Bitmap, transition: Transition<in Bitmap>?) {
+                                            val comFade = aplicarFade(resource)
+                                            findViewById<ImageView>(R.id.imgProduto).setImageBitmap(comFade)
+                                            findViewById<ImageView>(R.id.imgProduto).visibility = View.VISIBLE
 
-")
+                                            val blur = blurBitmap(resource, 25f)
+                                            findViewById<ImageView>(R.id.imgFundo).setImageBitmap(blur)
+                                            findViewById<ImageView>(R.id.imgFundo).visibility = View.VISIBLE
+                                        }
+                                        override fun onLoadCleared(placeholder: Drawable?) {}
+                                    })
+                            } catch (e: Exception) { }
                         }
                     }
-                } catch (e: Exception) {
-                    // Ignora erro
                 }
-
-                runOnUiThread {
-                    txtStatus.text = "Testando: " + caminho
-                }
-            }
-
-            runOnUiThread {
-                txtStatus.text = "Concluido! Encontrados: " + encontrados
-                if (encontrados == 0) {
-                    txtResultado.text = "Nenhum caminho encontrado. Servidor pode nao ter pagina web."
-                }
-            }
+            } catch (e: Exception) { }
         }.start()
+    }
+
+    private fun aplicarFade(bitmap: Bitmap): Bitmap {
+        val w = bitmap.width
+        val h = bitmap.height
+        val output = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
+
+        val paint = Paint()
+        val fadeW = (w * 0.2f).toInt()
+
+        val gl = LinearGradient(0f, 0f, fadeW.toFloat(), 0f, Color.TRANSPARENT, Color.BLACK, Shader.TileMode.CLAMP)
+        paint.shader = gl
+        canvas.drawRect(0f, 0f, fadeW.toFloat(), h.toFloat(), paint)
+
+        val gr = LinearGradient((w - fadeW).toFloat(), 0f, w.toFloat(), 0f, Color.BLACK, Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        paint.shader = gr
+        canvas.drawRect((w - fadeW).toFloat(), 0f, w.toFloat(), h.toFloat(), paint)
+
+        return output
+    }
+
+    private fun blurBitmap(bitmap: Bitmap, radius: Float): Bitmap {
+        val w = (bitmap.width * 0.5f).toInt()
+        val h = (bitmap.height * 0.5f).toInt()
+        val input = Bitmap.createScaledBitmap(bitmap, w, h, false)
+        val output = Bitmap.createBitmap(input)
+
+        val rs = RenderScript.create(this)
+        val blur = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs))
+        val tmpIn = Allocation.createFromBitmap(rs, input)
+        val tmpOut = Allocation.createFromBitmap(rs, output)
+        blur.setRadius(radius)
+        blur.forEach(tmpOut)
+        tmpOut.copyTo(output)
+
+        return output
+    }
+
+    private fun buscarProduto(codigo: String) {
+        if (codigo.isBlank() || codigo == "-") return
+
+        findViewById<TextView>(R.id.txtNome).text = "Buscando..."
+
+        timeoutRunnable?.let { handler.removeCallbacks(it) }
+        timeoutRunnable = Runnable {
+            findViewById<TextView>(R.id.txtNome).text = "Tempo esgotado"
+        }
+        handler.postDelayed(timeoutRunnable!!, 15000)
+
+        // Vai para unitario.php e injeta o código
+        val webView = WebView(this)
+        webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+        webView.visibility = View.INVISIBLE
+        webView.layoutParams = android.view.ViewGroup.LayoutParams(1, 1)
+
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+
+        (findViewById<View>(android.R.id.content) as android.view.ViewGroup).addView(webView)
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                if (url.contains("unitario.php")) {
+                    // Injeta o código e busca
+                    val js = """(function(){
+                        var c = document.querySelector('#btnBusca');
+                        if (c) {
+                            c.value = '$codigo';
+                            c.dispatchEvent(new Event('input', {bubbles:true}));
+                            if (window.jQuery) {
+                                jQuery('#pesq_prod').click();
+                            }
+                        }
+                    })();"""
+                    webView.evaluateJavascript(js, null)
+
+                    // Aguarda resultado
+                    handler.postDelayed({
+                        webView.evaluateJavascript(
+                            """(function(){
+                                var r = document.getElementById('retorno');
+                                if (r && r.innerText.trim().length > 3) {
+                                    return r.innerText;
+                                }
+                                return '';
+                            })();"""
+                        ) { res ->
+                            timeoutRunnable?.let { handler.removeCallbacks(it) }
+                            if (!res.isNullOrBlank() && res != "null") {
+                                mostrarResultado(res.removeSurrounding("""), codigo)
+                            } else {
+                                findViewById<TextView>(R.id.txtNome).text = "Produto nao encontrado"
+                            }
+                        }
+                    }, 4000)
+                } else if (url.contains("index.php")) {
+                    // Faz login se caiu na tela de login
+                    val js = """(function(){
+                        var u = document.querySelector('input[name="usuario"], input[name="login"]');
+                        var p = document.querySelector('input[type="password"]');
+                        if (u && p) {
+                            u.value = '$USUARIO';
+                            p.value = '$SENHA';
+                            var f = p.closest('form');
+                            if (f) f.submit();
+                        }
+                    })();"""
+                    webView.evaluateJavascript(js, null)
+                }
+            }
+        }
+
+        webView.loadUrl(SITE_URL + "/unitario.php")
+    }
+
+    private fun mostrarResultado(texto: String, codigo: String) {
+        val linhas = texto.split("
+")
+        var nome = ""
+        var preco = ""
+        var categoria = ""
+        var peso = ""
+        var validade = ""
+
+        for (linha in linhas) {
+            val l = linha.trim()
+            when {
+                l.contains("R$") || Regex("\d+,\d{2}").containsMatchIn(l) -> preco = l
+                l.contains("g", true) && Regex("\d+").containsMatchIn(l) -> peso = l
+                Regex("\d{2}/\d{2}/\d{4}").containsMatchIn(l) -> validade = l
+                l.length > 3 && nome.isEmpty() -> nome = l
+            }
+        }
+
+        runOnUiThread {
+            findViewById<TextView>(R.id.txtNome).text = nome.ifEmpty { "Produto" }
+            findViewById<TextView>(R.id.txtPreco).text = preco.ifEmpty { "R$ -" }
+            findViewById<TextView>(R.id.txtCodigo).text = codigo
+            findViewById<TextView>(R.id.txtCategoria).text = categoria.ifEmpty { "-" }
+            findViewById<TextView>(R.id.txtPeso).text = peso.ifEmpty { "-" }
+            findViewById<TextView>(R.id.txtValidade).text = validade.ifEmpty { "-" }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        timeoutRunnable?.let { handler.removeCallbacks(it) }
     }
 }
