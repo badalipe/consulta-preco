@@ -13,8 +13,6 @@ import java.net.URL
 class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
-    private val API_TOKEN = "3hjr6ken8b91xo7ym2wpcsqagifvu45n"
-    private val LOJA_ID = "7"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,94 +34,56 @@ class MainActivity : AppCompatActivity() {
             val codigo = data?.getStringExtra("codigo")
             codigo?.let {
                 findViewById<TextView>(R.id.txtCodigo).text = it
-                buscarPrecoAPI(it)
+                buscarPreco(it)
             }
         }
     }
 
-    private fun buscarPrecoAPI(codigo: String) {
+    private fun buscarPreco(codigo: String) {
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
         findViewById<TextView>(R.id.txtPreco).text = "..."
 
         Thread {
             try {
-                // Tenta a API pública primeiro
-                val urlStr = "https://apicartazfacil.com/public/api/produtos?codigo=$codigo&loja_id=$LOJA_ID&token=$API_TOKEN"
-                val url = URL(urlStr)
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 10000
-                conn.readTimeout = 10000
-                conn.setRequestProperty("Accept", "application/json")
-
-                val response = conn.inputStream.bufferedReader().readText()
-
-                runOnUiThread {
-                    processarJSON(response, codigo)
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    // Se API falhar, tenta método alternativo
-                    buscarPrecoSite(codigo)
-                }
-            }
-        }.start()
-    }
-
-    private fun processarJSON(json: String, codigo: String) {
-        try {
-            // Tenta extrair dados do JSON
-            val nomeRegex = Regex("\"nome\":\"([^\"]+)\"")
-            val precoRegex = Regex("\"preco\":\"([^\"]+)\"")
-
-            val nome = nomeRegex.find(json)?.groupValues?.get(1) ?: "Produto"
-            val preco = precoRegex.find(json)?.groupValues?.get(1) ?: ""
-
-            findViewById<TextView>(R.id.txtNome).text = nome
-            findViewById<TextView>(R.id.txtPreco).text = if (preco.isNotEmpty()) "R$ $preco" else "R$ -"
-
-            // Volta para scanner
-            handler.postDelayed({
-                val intent = Intent(this, ScannerActivity::class.java)
-                startActivityForResult(intent, 100)
-            }, 5000)
-        } catch (e: Exception) {
-            findViewById<TextView>(R.id.txtNome).text = "Erro ao processar"
-        }
-    }
-
-    private fun buscarPrecoSite(codigo: String) {
-        // Método alternativo via site
-        Thread {
-            try {
-                val url = URL("https://rmarket.cartazfacil.pro/inc/buscaProduto.php?buscaProd=$codigo&sessao=")
+                val url = URL("https://rmarket.cartazfacil.pro/inc/buscaProduto.php?buscaProd=" + codigo + "&sessao=")
                 val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "POST"
                 conn.connectTimeout = 10000
+                conn.readTimeout = 10000
                 conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
                 val response = conn.inputStream.bufferedReader().readText()
 
                 runOnUiThread {
-                    extrairDoHTML(response)
+                    extrairPreco(response)
                 }
             } catch (e: Exception) {
                 runOnUiThread {
-                    findViewById<TextView>(R.id.txtNome).text = "Erro: ${e.message}"
+                    findViewById<TextView>(R.id.txtNome).text = "Erro: " + e.message
+                    findViewById<TextView>(R.id.txtPreco).text = "R$ -"
                 }
             }
         }.start()
     }
 
-    private fun extrairDoHTML(html: String) {
-        val nomeRegex = Regex("<small class='descRetornoProd\d+'[^>]*>([^<]+)")
-        val precoRegex = Regex("Valores:\s*(\d+,\d{2})")
+    private fun extrairPreco(html: String) {
+        // Extrai nome do produto
+        val nomeRegex = Regex("<small class='descRetornoProd[0-9]+'[^>]*>([^<]+)")
+        val nomeMatch = nomeRegex.find(html)
+        val nome = nomeMatch?.groupValues?.get(1)?.trim() ?: "Produto não encontrado"
 
-        val nome = nomeRegex.find(html)?.groupValues?.get(1)?.trim() ?: "Não encontrado"
-        val preco = precoRegex.find(html)?.groupValues?.get(1) ?: ""
+        // Extrai preço
+        val precoRegex = Regex("Valores: ([0-9]+,[0-9]{2})")
+        val precoMatch = precoRegex.find(html)
+        val preco = precoMatch?.groupValues?.get(1) ?: ""
 
         findViewById<TextView>(R.id.txtNome).text = nome
-        findViewById<TextView>(R.id.txtPreco).text = if (preco.isNotEmpty()) "R$ $preco" else "R$ -"
+        findViewById<TextView>(R.id.txtPreco).text = if (preco.isNotEmpty()) "R$ " + preco else "R$ -"
+
+        handler.postDelayed({
+            val intent = Intent(this, ScannerActivity::class.java)
+            startActivityForResult(intent, 100)
+        }, 5000)
     }
 
     private fun limpar() {
