@@ -24,7 +24,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webViewContainer: FrameLayout
     private lateinit var mainContent: View
     private var wv: WebView? = null
-    private var cloudflareResolvido = false
+    private var cloudflareOk = false
     private var codigoPendente = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,43 +45,48 @@ class MainActivity : AppCompatActivity() {
         wv?.settings?.domStorageEnabled = true
         wv?.settings?.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
-        wv?.layoutParams = FrameLayout.LayoutParams(
+        val params = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         )
-
+        wv?.layoutParams = params
         webViewContainer.addView(wv)
     }
 
     private fun setupBotoes() {
-        findViewById<Button>(R.id.btnScan).setOnClickListener {
+        val btnScan = findViewById<Button>(R.id.btnScan)
+        btnScan.setOnClickListener {
             val intent = Intent(this, ScannerActivity::class.java)
             startActivityForResult(intent, 100)
         }
 
-        findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
+        val btnVoltar = findViewById<TextView>(R.id.btnVoltar)
+        btnVoltar.setOnClickListener {
             if (webViewContainer.visibility == View.VISIBLE) {
                 webViewContainer.visibility = View.GONE
                 mainContent.visibility = View.VISIBLE
             } else {
-                limpar()
+                limparTela()
             }
         }
 
-        findViewById<EditText>(R.id.edtCodigo).setOnEditorActionListener { v, actionId, _ ->
+        val edtCodigo = findViewById<EditText>(R.id.edtCodigo)
+        edtCodigo.setOnEditorActionListener { v, actionId, _ ->
             if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH || 
                 actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
                 val codigo = v.text.toString().trim()
                 if (codigo.isNotEmpty()) {
-                    if (cloudflareResolvido) {
+                    if (cloudflareOk) {
                         buscarPreco(codigo)
                     } else {
                         codigoPendente = codigo
-                        mostrarWebViewParaLogin()
+                        mostrarWebView()
                     }
                 }
                 true
-            } else false
+            } else {
+                false
+            }
         }
     }
 
@@ -90,15 +95,15 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView, url: String) {
                 when {
                     url.contains("challenge-platform") || url.contains("cdn-cgi") -> {
-                        cloudflareResolvido = false
+                        cloudflareOk = false
                         Toast.makeText(this@MainActivity, "Resolva o Cloudflare", Toast.LENGTH_LONG).show()
-                        mostrarWebViewParaLogin()
+                        mostrarWebView()
                     }
                     url.contains("index.php") || url.contains("login") -> {
-                        fazerLoginNoWebView(view)
+                        fazerLogin(view)
                     }
                     url.contains("home.php") || url.contains("unitario.php") -> {
-                        cloudflareResolvido = true
+                        cloudflareOk = true
                         webViewContainer.visibility = View.GONE
                         mainContent.visibility = View.VISIBLE
                         Toast.makeText(this@MainActivity, "Conectado!", Toast.LENGTH_SHORT).show()
@@ -115,14 +120,14 @@ class MainActivity : AppCompatActivity() {
         wv?.loadUrl(SITE + "/unitario.php")
     }
 
-    private fun mostrarWebViewParaLogin() {
+    private fun mostrarWebView() {
         webViewContainer.visibility = View.VISIBLE
         mainContent.visibility = View.GONE
         Toast.makeText(this, "Faca login e resolva o Cloudflare", Toast.LENGTH_LONG).show()
         wv?.loadUrl(SITE + "/index.php")
     }
 
-    private fun fazerLoginNoWebView(view: WebView) {
+    private fun fazerLogin(view: WebView) {
         val js = "var u=document.querySelector('input[name="usuario"]')||document.querySelector('input[name="login"]');" +
                  "var p=document.querySelector('input[type="password"]');" +
                  "if(u&&p){u.value='" + USER + "';p.value='" + PASS + "';" +
@@ -135,22 +140,28 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == 100 && resultCode == RESULT_OK) {
             val codigo = data?.getStringExtra("codigo")
             codigo?.let {
-                findViewById<TextView>(R.id.txtCodigo).text = it
-                findViewById<EditText>(R.id.edtCodigo).setText(it)
+                val txtCodigo = findViewById<TextView>(R.id.txtCodigo)
+                txtCodigo.text = it
 
-                if (cloudflareResolvido) {
+                val edtCodigo = findViewById<EditText>(R.id.edtCodigo)
+                edtCodigo.setText(it)
+
+                if (cloudflareOk) {
                     buscarPreco(it)
                 } else {
                     codigoPendente = it
-                    mostrarWebViewParaLogin()
+                    mostrarWebView()
                 }
             }
         }
     }
 
     private fun buscarPreco(codigo: String) {
-        findViewById<TextView>(R.id.txtNome).text = "Buscando..."
-        findViewById<TextView>(R.id.txtPreco).text = "..."
+        val txtNome = findViewById<TextView>(R.id.txtNome)
+        val txtPreco = findViewById<TextView>(R.id.txtPreco)
+
+        txtNome.text = "Buscando..."
+        txtPreco.text = "..."
 
         webViewContainer.visibility = View.GONE
         mainContent.visibility = View.VISIBLE
@@ -169,7 +180,7 @@ class MainActivity : AppCompatActivity() {
                             "var r=document.getElementById('retorno');" +
                             "if(r&&r.innerText.trim().length>3){r.innerText;}else{'';}"
                         ) { res ->
-                            extrairPreco(res ?: "", codigo)
+                            mostrarResultado(res ?: "", codigo)
                         }
                     }, 5000)
                 }
@@ -179,37 +190,58 @@ class MainActivity : AppCompatActivity() {
         wv?.loadUrl(SITE + "/unitario.php")
     }
 
-    private fun extrairPreco(texto: String, codigo: String) {
+    private fun mostrarResultado(texto: String, codigo: String) {
         val linhas = texto.split("
 ")
-        var nome = ""
-        var preco = ""
+        var nomeProduto = ""
+        var precoProduto = ""
 
         for (linha in linhas) {
             val l = linha.trim()
-            if (l.contains("R$") || l.matches(Regex(".*[0-9]+,[0-9]{2}.*"))) {
-                if (preco.isEmpty()) preco = l
-            } else if (l.length > 5 && !l.contains("Codigo") && !l.contains("Barras") && nome.isEmpty()) {
-                nome = l
+            if (l.contains("R$") || l.contains(",")) {
+                if (precoProduto.isEmpty()) {
+                    precoProduto = l
+                }
+            } else if (l.length > 5 && !l.contains("Codigo") && !l.contains("Barras")) {
+                if (nomeProduto.isEmpty()) {
+                    nomeProduto = l
+                }
             }
         }
 
-        runOnUiThread {
-            findViewById<TextView>(R.id.txtNome).text = if (nome.isEmpty()) "Produto nao encontrado" else nome
-            findViewById<TextView>(R.id.txtPreco).text = if (preco.isEmpty()) "R$ -" else preco
-            findViewById<TextView>(R.id.txtCodigo).text = codigo
+        val txtNome = findViewById<TextView>(R.id.txtNome)
+        val txtPreco = findViewById<TextView>(R.id.txtPreco)
+        val txtCodigo = findViewById<TextView>(R.id.txtCodigo)
 
-            handler.postDelayed({
-                val intent = Intent(this, ScannerActivity::class.java)
-                startActivityForResult(intent, 100)
-            }, 5000)
+        if (nomeProduto.isEmpty()) {
+            txtNome.text = "Produto nao encontrado"
+        } else {
+            txtNome.text = nomeProduto
         }
+
+        if (precoProduto.isEmpty()) {
+            txtPreco.text = "R$ -"
+        } else {
+            txtPreco.text = precoProduto
+        }
+
+        txtCodigo.text = codigo
+
+        handler.postDelayed({
+            val intent = Intent(this, ScannerActivity::class.java)
+            startActivityForResult(intent, 100)
+        }, 5000)
     }
 
-    private fun limpar() {
-        findViewById<TextView>(R.id.txtNome).text = "Escaneie ou digite o codigo"
-        findViewById<TextView>(R.id.txtCodigo).text = "-"
-        findViewById<TextView>(R.id.txtPreco).text = "R$ 0,00"
-        findViewById<EditText>(R.id.edtCodigo).setText("")
+    private fun limparTela() {
+        val txtNome = findViewById<TextView>(R.id.txtNome)
+        val txtCodigo = findViewById<TextView>(R.id.txtCodigo)
+        val txtPreco = findViewById<TextView>(R.id.txtPreco)
+        val edtCodigo = findViewById<EditText>(R.id.edtCodigo)
+
+        txtNome.text = "Escaneie ou digite o codigo"
+        txtCodigo.text = "-"
+        txtPreco.text = "R$ 0,00"
+        edtCodigo.setText("")
     }
 }
