@@ -24,33 +24,23 @@ class MainActivity : AppCompatActivity() {
 
         edtCodigo = findViewById(R.id.edtCodigo)
 
-        // Botão SCAN
         findViewById<Button>(R.id.btnScan).setOnClickListener {
             val intent = Intent(this, ScannerActivity::class.java)
             startActivityForResult(intent, 100)
         }
 
-        // Botão voltar
         findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
             limpar()
         }
 
-        // BUSCA MANUAL - Quando pressiona Enter
-        edtCodigo.setOnEditorActionListener { _, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH || 
-                actionId == EditorInfo.IME_ACTION_DONE ||
-                (event != null && event.keyCode == android.view.KeyEvent.KEYCODE_ENTER)) {
-
+        edtCodigo.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
                 val codigo = edtCodigo.text.toString().trim()
                 if (codigo.isNotEmpty()) {
                     buscarPreco(codigo)
-                } else {
-                    Toast.makeText(this, "Digite um código", Toast.LENGTH_SHORT).show()
                 }
                 true
-            } else {
-                false
-            }
+            } else false
         }
     }
 
@@ -70,8 +60,6 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
         findViewById<TextView>(R.id.txtPreco).text = "..."
 
-        Toast.makeText(this, "Buscando: " + codigo, Toast.LENGTH_SHORT).show()
-
         Thread {
             try {
                 val url = URL("https://rmarket.cartazfacil.pro/inc/buscaProduto.php?buscaProd=" + codigo + "&sessao=")
@@ -80,9 +68,13 @@ class MainActivity : AppCompatActivity() {
                 conn.connectTimeout = 15000
                 conn.readTimeout = 15000
                 conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
 
                 val response = conn.inputStream.bufferedReader().readText()
+
+                // DEBUG: Mostra tamanho da resposta
+                runOnUiThread {
+                    Toast.makeText(this, "Resposta: " + response.length + " chars", Toast.LENGTH_LONG).show()
+                }
 
                 runOnUiThread {
                     extrairPreco(response, codigo)
@@ -90,33 +82,59 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 runOnUiThread {
                     findViewById<TextView>(R.id.txtNome).text = "Erro: " + e.message
-                    findViewById<TextView>(R.id.txtPreco).text = "R$ -"
-                    Toast.makeText(this, "Erro na busca", Toast.LENGTH_LONG).show()
                 }
             }
         }.start()
     }
 
     private fun extrairPreco(html: String, codigo: String) {
-        // Extrai nome
-        val nomeRegex = Regex("<small class='descRetornoProd[0-9]+'[^>]*>([^<]+)")
-        val nomeMatch = nomeRegex.find(html)
-        val nome = nomeMatch?.groupValues?.get(1)?.trim() ?: "Produto não encontrado"
+        // Tenta múltiplos padrões de regex
 
-        // Extrai preço
-        val precoRegex = Regex("Valores: ([0-9]+,[0-9]{2})")
-        val precoMatch = precoRegex.find(html)
-        val preco = precoMatch?.groupValues?.get(1) ?: ""
+        // Padrão 1: descRetornoProd
+        var nomeRegex = Regex("<small class='descRetornoProd[0-9]+'[^>]*>([^<]+)")
+        var nomeMatch = nomeRegex.find(html)
+        var nome = nomeMatch?.groupValues?.get(1)?.trim()
 
-        findViewById<TextView>(R.id.txtNome).text = nome
-        findViewById<TextView>(R.id.txtPreco).text = if (preco.isNotEmpty()) "R$ " + preco else "R$ -"
+        // Padrão 2: Qualquer small com classe descRetorno
+        if (nome == null) {
+            nomeRegex = Regex("<small[^>]*class='[^']*descRetorno[^']*'[^>]*>([^<]+)")
+            nomeMatch = nomeRegex.find(html)
+            nome = nomeMatch?.groupValues?.get(1)?.trim()
+        }
+
+        // Padrão 3: Qualquer texto com MARGARINA, ARROZ, etc
+        if (nome == null) {
+            val produtoRegex = Regex("([A-Z][A-Z\s]{10,50})")
+            val produtoMatch = produtoRegex.find(html)
+            nome = produtoMatch?.groupValues?.get(1)?.trim()
+        }
+
+        // Extrai preço - múltiplos padrões
+        var preco = ""
+        val precoPatterns = listOf(
+            Regex("Valores:\s*([0-9]+,[0-9]{2})"),
+            Regex("R\$\s*([0-9]+,[0-9]{2})"),
+            Regex("([0-9]+,[0-9]{2})")
+        )
+
+        for (pattern in precoPatterns) {
+            val match = pattern.find(html)
+            if (match != null) {
+                preco = match.groupValues[1]
+                break
+            }
+        }
+
+        // Se não encontrou nada, mostra debug
+        if (nome == null && preco.isEmpty()) {
+            findViewById<TextView>(R.id.txtNome).text = "Nao encontrado (debug)"
+            findViewById<TextView>(R.id.txtPreco).text = "R$ -"
+        } else {
+            findViewById<TextView>(R.id.txtNome).text = nome ?: "Sem nome"
+            findViewById<TextView>(R.id.txtPreco).text = if (preco.isNotEmpty()) "R$ " + preco else "R$ -"
+        }
+
         findViewById<TextView>(R.id.txtCodigo).text = codigo
-
-        // Volta para scanner após 5 segundos
-        handler.postDelayed({
-            val intent = Intent(this, ScannerActivity::class.java)
-            startActivityForResult(intent, 100)
-        }, 5000)
     }
 
     private fun limpar() {
