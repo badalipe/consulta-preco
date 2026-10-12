@@ -5,42 +5,109 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import java.net.Authenticator
 import java.net.HttpURLConnection
+import java.net.InetSocketAddress
+import java.net.PasswordAuthentication
+import java.net.Proxy
 import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val SERVER = "http://10.10.254.73:8343"
-    private val API = "/SMProdutosAPI/api/v4/produtos/precos-produtos"
-    private val EMPRESA = "4"
+
+    private lateinit var edtProxyIP: EditText
+    private lateinit var edtProxyPorta: EditText
+    private lateinit var edtProxyUser: EditText
+    private lateinit var edtProxyPass: EditText
+    private lateinit var txtStatus: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
 
-        val btnScan = findViewById<Button>(R.id.btnScan)
-        btnScan.setOnClickListener {
-            val intent = Intent(this, ScannerActivity::class.java)
-            startActivityForResult(intent, 100)
+        // Layout simples
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(40, 80, 40, 40)
         }
 
-        // Testa API ao abrir
-        testarAPI()
+        txtStatus = TextView(this).apply {
+            text = "Configure o Proxy"
+            textSize = 20f
+            setPadding(0, 0, 0, 30)
+        }
+
+        edtProxyIP = EditText(this).apply {
+            hint = "Proxy IP (ex: 1.1.1.1)"
+            setText("1.1.1.1")
+        }
+
+        edtProxyPorta = EditText(this).apply {
+            hint = "Proxy Porta (ex: 3720)"
+            setText("3720")
+        }
+
+        edtProxyUser = EditText(this).apply {
+            hint = "Usuario Proxy"
+        }
+
+        edtProxyPass = EditText(this).apply {
+            hint = "Senha Proxy"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+
+        val btnTestar = Button(this).apply {
+            text = "TESTAR COM PROXY"
+            setOnClickListener {
+                testarComProxy()
+            }
+        }
+
+        val btnScan = Button(this).apply {
+            text = "ABRIR SCANNER"
+            setOnClickListener {
+                startActivity(Intent(this@MainActivity, ScannerActivity::class.java))
+            }
+        }
+
+        layout.addView(txtStatus)
+        layout.addView(edtProxyIP)
+        layout.addView(edtProxyPorta)
+        layout.addView(edtProxyUser)
+        layout.addView(edtProxyPass)
+        layout.addView(btnTestar)
+        layout.addView(btnScan)
+
+        setContentView(layout)
     }
 
-    private fun testarAPI() {
-        val txtStatus = findViewById<TextView>(R.id.txtNome)
-        txtStatus.text = "Testando API TOTVS..."
+    private fun testarComProxy() {
+        val proxyIP = edtProxyIP.text.toString()
+        val proxyPorta = edtProxyPorta.text.toString().toIntOrNull() ?: 3720
+        val proxyUser = edtProxyUser.text.toString()
+        val proxyPass = edtProxyPass.text.toString()
+
+        txtStatus.text = "Testando com proxy " + proxyIP + ":" + proxyPorta + "..."
+
+        // Configura autenticacao do proxy
+        Authenticator.setDefault(object : Authenticator() {
+            override fun getPasswordAuthentication(): PasswordAuthentication {
+                return PasswordAuthentication(proxyUser, proxyPass.toCharArray())
+            }
+        })
 
         Thread {
             try {
-                val url = URL(SERVER + API + "?nroEmpresa=" + EMPRESA)
-                val conn = url.openConnection() as HttpURLConnection
+                val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress(proxyIP, proxyPorta))
+                val url = URL(SERVER + "/SMProdutosAPI/api/v4/produtos/precos-produtos?nroEmpresa=4")
+                val conn = url.openConnection(proxy) as HttpURLConnection
                 conn.requestMethod = "GET"
-                conn.connectTimeout = 10000
+                conn.connectTimeout = 15000
                 conn.setRequestProperty("Accept", "application/json")
 
                 val code = conn.responseCode
@@ -48,9 +115,10 @@ class MainActivity : AppCompatActivity() {
 
                 runOnUiThread {
                     if (code == 200) {
-                        txtStatus.text = "API TOTVS OK!"
+                        txtStatus.text = "PROXY OK! API respondeu!"
+                        Toast.makeText(this, "Conectado via proxy!", Toast.LENGTH_LONG).show()
                     } else {
-                        txtStatus.text = "API respondeu: " + code
+                        txtStatus.text = "Proxy respondeu: " + code
                     }
                 }
             } catch (e: Exception) {
@@ -59,76 +127,5 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 100 && resultCode == RESULT_OK) {
-            val codigo = data?.getStringExtra("codigo")
-            codigo?.let {
-                val txtCodigo = findViewById<TextView>(R.id.txtCodigo)
-                txtCodigo.text = it
-                buscarPreco(it)
-            }
-        }
-    }
-
-    private fun buscarPreco(codigoBarras: String) {
-        val txtNome = findViewById<TextView>(R.id.txtNome)
-        val txtPreco = findViewById<TextView>(R.id.txtPreco)
-
-        txtNome.text = "Buscando..."
-        txtPreco.text = "..."
-
-        Thread {
-            try {
-                val url = URL(SERVER + API + "?codigoAcesso=" + codigoBarras + "&nroEmpresa=" + EMPRESA)
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 10000
-                conn.setRequestProperty("Accept", "application/json")
-
-                val response = conn.inputStream.bufferedReader().readText()
-
-                runOnUiThread {
-                    processarJSON(response)
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    txtNome.text = "Erro: " + e.message
-                    txtPreco.text = "R$ -"
-                }
-            }
-        }.start()
-    }
-
-    private fun processarJSON(json: String) {
-        val txtNome = findViewById<TextView>(R.id.txtNome)
-        val txtPreco = findViewById<TextView>(R.id.txtPreco)
-
-        try {
-            // Extrai nome e preco do JSON
-            val nomeRegex = Regex("\"descricao\":\"([^\"]+)\"")
-            val precoRegex = Regex("\"preco\":([0-9.]+)")
-
-            val nomeMatch = nomeRegex.find(json)
-            val precoMatch = precoRegex.find(json)
-
-            val nome = nomeMatch?.groupValues?.get(1) ?: "Produto nao encontrado"
-            val preco = precoMatch?.groupValues?.get(1) ?: ""
-
-            txtNome.text = nome
-            txtPreco.text = if (preco.isNotEmpty()) "R$ " + preco else "R$ -"
-
-            // Volta para scanner apos 5 segundos
-            handler.postDelayed({
-                val intent = Intent(this, ScannerActivity::class.java)
-                startActivityForResult(intent, 100)
-            }, 5000)
-
-        } catch (e: Exception) {
-            txtNome.text = "Erro ao processar"
-            txtPreco.text = "R$ -"
-        }
     }
 }
