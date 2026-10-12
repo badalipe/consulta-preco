@@ -5,9 +5,7 @@
     android:layout_height="match_parent"
     android:background="#0A0E27">
 
-    <!-- Conteúdo Principal -->
     <LinearLayout
-        android:id="@+id/mainContent"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical">
@@ -55,7 +53,7 @@
                 android:id="@+id/txtNome"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Escaneie ou digite o código"
+                android:text="Conectando..."
                 android:textColor="#FFFFFF"
                 android:textSize="26sp"
                 android:textStyle="bold" />
@@ -194,12 +192,4 @@
                 android:textSize="12sp" />
         </LinearLayout>
     </LinearLayout>
-
-    <!-- WebView Container (para Cloudflare/Login) -->
-    <FrameLayout
-        android:id="@+id/webViewContainer"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone" />
-
 </FrameLayout>
