@@ -1,0 +1,63 @@
+name: Agente de Testes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  testar:
+    runs-on: ubuntu-latest
+    container: gradle:8.7-jdk17
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Android SDK
+        run: |
+          apt-get update -qq && apt-get install -y -qq unzip curl
+          mkdir -p /opt/android-sdk/cmdline-tools
+          curl -sSL -o /tmp/cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk/cmdline-tools
+          mv /opt/android-sdk/cmdline-tools/cmdline-tools /opt/android-sdk/cmdline-tools/latest
+          echo "ANDROID_HOME=/opt/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=/opt/android-sdk" >> $GITHUB_ENV
+          yes | /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk --licenses > /dev/null || true
+          /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --sdk_root=/opt/android-sdk "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Preparar projeto
+        run: |
+          mkdir -p app/src/main/java/com/quickprice/app app/src/main/res/layout app/src/main/res/values
+          [ -f app-build.gradle ] && mv app-build.gradle app/build.gradle
+          for f in *.kt; do [ -f "$f" ] && mv "$f" app/src/main/java/com/quickprice/app/; done
+          [ -f AndroidManifest.xml ] && mv AndroidManifest.xml app/src/main/
+
+      - name: COMPILAR
+        id: compilar
+        run: gradle assembleDebug --no-daemon 2>&1 | tee /tmp/compile.log
+        continue-on-error: true
+
+      - name: ANALISAR ERROS
+        if: steps.compilar.outcome == 'failure'
+        run: |
+          echo "=== ERROS DE COMPILAÇÃO ==="
+          grep -E "error:|e:" /tmp/compile.log | head -30
+          echo ""
+          echo "Total de erros: $(grep -c "error:" /tmp/compile.log || echo 0)"
+
+      - name: SUCESSO
+        if: steps.compilar.outcome == 'success'
+        run: |
+          echo "✅ BUILD COMPILOU COM SUCESSO!"
+          ls -lh app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Enviar APK
+        if: steps.compilar.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-testado
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Enviar Relatório de Erro
+        if: steps.compilar.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-erro
+          path: /tmp/compile.log
