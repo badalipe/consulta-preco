@@ -4,44 +4,150 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.inputmethod.EditorInfo
+import android.view.View
+import android.webkit.CookieManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.net.HttpURLConnection
-import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
+    private val SITE = "https://rmarket.cartazfacil.pro"
+    private val USER = "rmarket07"
+    private val PASS = "sup12345"
     private val handler = Handler(Looper.getMainLooper())
-    private lateinit var edtCodigo: EditText
+
+    private lateinit var webViewContainer: FrameLayout
+    private lateinit var mainContent: View
+    private var wv: WebView? = null
+    private var cloudflareResolvido = false
+    private var codigoPendente = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        edtCodigo = findViewById(R.id.edtCodigo)
+        webViewContainer = findViewById(R.id.webViewContainer)
+        mainContent = findViewById(R.id.mainContent)
 
+        setupWebView()
+        setupBotoes()
+
+        // Verifica se já tem cookie salvo
+        verificarSessao()
+    }
+
+    private fun setupWebView() {
+        wv = WebView(this)
+        wv?.settings?.javaScriptEnabled = true
+        wv?.settings?.domStorageEnabled = true
+        wv?.settings?.userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(wv, true)
+
+        wv?.layoutParams = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+
+        webViewContainer.addView(wv)
+    }
+
+    private fun setupBotoes() {
         findViewById<Button>(R.id.btnScan).setOnClickListener {
             val intent = Intent(this, ScannerActivity::class.java)
             startActivityForResult(intent, 100)
         }
 
         findViewById<TextView>(R.id.btnVoltar).setOnClickListener {
-            limpar()
+            if (webViewContainer.visibility == View.VISIBLE) {
+                // Se WebView visível, esconde
+                webViewContainer.visibility = View.GONE
+                mainContent.visibility = View.VISIBLE
+            } else {
+                limpar()
+            }
         }
 
-        edtCodigo.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_DONE) {
-                val codigo = edtCodigo.text.toString().trim()
+        findViewById<EditText>(R.id.edtCodigo).setOnEditorActionListener { v, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH || 
+                actionId == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) {
+                val codigo = v.text.toString().trim()
                 if (codigo.isNotEmpty()) {
-                    buscarPreco(codigo)
+                    if (cloudflareResolvido) {
+                        buscarPreco(codigo)
+                    } else {
+                        codigoPendente = codigo
+                        mostrarWebViewParaLogin()
+                    }
                 }
                 true
             } else false
         }
+    }
+
+    private fun verificarSessao() {
+        // Tenta acessar unitario.php para ver se está logado
+        wv?.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                when {
+                    url.contains("challenge-platform") || url.contains("cdn-cgi") -> {
+                        // Cloudflare detectado - precisa resolver manualmente
+                        cloudflareResolvido = false
+                        Toast.makeText(this@MainActivity, "Resolva o Cloudflare", Toast.LENGTH_LONG).show()
+                        mostrarWebViewParaLogin()
+                    }
+                    url.contains("index.php") || url.contains("login") -> {
+                        // Precisa fazer login
+                        fazerLoginNoWebView(view)
+                    }
+                    url.contains("home.php") || url.contains("unitario.php") -> {
+                        // Logado com sucesso!
+                        cloudflareResolvido = true
+                        webViewContainer.visibility = View.GONE
+                        mainContent.visibility = View.VISIBLE
+                        Toast.makeText(this@MainActivity, "Conectado!", Toast.LENGTH_SHORT).show()
+
+                        // Se tem código pendente, busca
+                        if (codigoPendente.isNotEmpty()) {
+                            buscarPreco(codigoPendente)
+                            codigoPendente = ""
+                        }
+                    }
+                }
+            }
+        }
+
+        wv?.loadUrl(SITE + "/unitario.php")
+    }
+
+    private fun mostrarWebViewParaLogin() {
+        webViewContainer.visibility = View.VISIBLE
+        mainContent.visibility = View.GONE
+
+        Toast.makeText(this, "Faça login e resolva o Cloudflare", Toast.LENGTH_LONG).show()
+
+        wv?.loadUrl(SITE + "/index.php")
+    }
+
+    private fun fazerLoginNoWebView(view: WebView) {
+        val js = """(function(){
+            var u = document.querySelector('input[name="usuario"]') || document.querySelector('input[name="login"]');
+            var p = document.querySelector('input[type="password"]');
+            if(u && p) {
+                u.value = '$USER';
+                p.value = '$PASS';
+                var f = p.closest('form');
+                if(f) f.submit();
+            }
+        })();"""
+        view.evaluateJavascript(js, null)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -50,8 +156,14 @@ class MainActivity : AppCompatActivity() {
             val codigo = data?.getStringExtra("codigo")
             codigo?.let {
                 findViewById<TextView>(R.id.txtCodigo).text = it
-                edtCodigo.setText(it)
-                buscarPreco(it)
+                findViewById<EditText>(R.id.edtCodigo).setText(it)
+
+                if (cloudflareResolvido) {
+                    buscarPreco(it)
+                } else {
+                    codigoPendente = it
+                    mostrarWebViewParaLogin()
+                }
             }
         }
     }
@@ -60,87 +172,76 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.txtNome).text = "Buscando..."
         findViewById<TextView>(R.id.txtPreco).text = "..."
 
-        Thread {
-            try {
-                val url = URL("https://rmarket.cartazfacil.pro/inc/buscaProduto.php?buscaProd=" + codigo + "&sessao=")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.connectTimeout = 15000
-                conn.readTimeout = 15000
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+        // Usa o WebView para buscar (mas invisível)
+        webViewContainer.visibility = View.GONE
+        mainContent.visibility = View.VISIBLE
 
-                val response = conn.inputStream.bufferedReader().readText()
+        wv?.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String) {
+                if (url.contains("unitario.php")) {
+                    val js = """(function(){
+                        var c = document.getElementById('btnBusca');
+                        if(c) {
+                            c.value = '$codigo';
+                            c.dispatchEvent(new Event('input', {bubbles:true}));
+                            if(window.jQuery) {
+                                jQuery('#pesq_prod').click();
+                            }
+                        }
+                    })();"""
+                    view.evaluateJavascript(js, null)
 
-                // DEBUG: Mostra tamanho da resposta
-                runOnUiThread {
-                    Toast.makeText(this, "Resposta: " + response.length + " chars", Toast.LENGTH_LONG).show()
-                }
-
-                runOnUiThread {
-                    extrairPreco(response, codigo)
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    findViewById<TextView>(R.id.txtNome).text = "Erro: " + e.message
+                    handler.postDelayed({
+                        view.evaluateJavascript(
+                            """(function(){
+                                var r = document.getElementById('retorno');
+                                if(r && r.innerText.trim().length > 3) {
+                                    return r.innerText;
+                                }
+                                return '';
+                            })();"""
+                        ) { res ->
+                            extrairPreco(res ?: "", codigo)
+                        }
+                    }, 5000)
                 }
             }
-        }.start()
+        }
+
+        wv?.loadUrl(SITE + "/unitario.php")
     }
 
-    private fun extrairPreco(html: String, codigo: String) {
-        // Tenta múltiplos padrões de regex
-
-        // Padrão 1: descRetornoProd
-        var nomeRegex = Regex("<small class='descRetornoProd[0-9]+'[^>]*>([^<]+)")
-        var nomeMatch = nomeRegex.find(html)
-        var nome = nomeMatch?.groupValues?.get(1)?.trim()
-
-        // Padrão 2: Qualquer small com classe descRetorno
-        if (nome == null) {
-            nomeRegex = Regex("<small[^>]*class='[^']*descRetorno[^']*'[^>]*>([^<]+)")
-            nomeMatch = nomeRegex.find(html)
-            nome = nomeMatch?.groupValues?.get(1)?.trim()
-        }
-
-        // Padrão 3: Qualquer texto com MARGARINA, ARROZ, etc
-        if (nome == null) {
-            val produtoRegex = Regex("([A-Z][A-Z\s]{10,50})")
-            val produtoMatch = produtoRegex.find(html)
-            nome = produtoMatch?.groupValues?.get(1)?.trim()
-        }
-
-        // Extrai preço - múltiplos padrões
+    private fun extrairPreco(texto: String, codigo: String) {
+        val linhas = texto.split("
+")
+        var nome = ""
         var preco = ""
-        val precoPatterns = listOf(
-            Regex("Valores:\s*([0-9]+,[0-9]{2})"),
-            Regex("R\$\s*([0-9]+,[0-9]{2})"),
-            Regex("([0-9]+,[0-9]{2})")
-        )
 
-        for (pattern in precoPatterns) {
-            val match = pattern.find(html)
-            if (match != null) {
-                preco = match.groupValues[1]
-                break
+        for (linha in linhas) {
+            val l = linha.trim()
+            when {
+                l.contains("R$") || Regex("[0-9]+,[0-9]{2}").containsMatchIn(l) -> preco = l
+                l.length > 5 && !l.contains("Código") && !l.contains("Barras") && nome.isEmpty() -> nome = l
             }
         }
 
-        // Se não encontrou nada, mostra debug
-        if (nome == null && preco.isEmpty()) {
-            findViewById<TextView>(R.id.txtNome).text = "Nao encontrado (debug)"
-            findViewById<TextView>(R.id.txtPreco).text = "R$ -"
-        } else {
-            findViewById<TextView>(R.id.txtNome).text = nome ?: "Sem nome"
-            findViewById<TextView>(R.id.txtPreco).text = if (preco.isNotEmpty()) "R$ " + preco else "R$ -"
-        }
+        runOnUiThread {
+            findViewById<TextView>(R.id.txtNome).text = nome.ifEmpty { "Produto não encontrado" }
+            findViewById<TextView>(R.id.txtPreco).text = preco.ifEmpty { "R$ -" }
+            findViewById<TextView>(R.id.txtCodigo).text = codigo
 
-        findViewById<TextView>(R.id.txtCodigo).text = codigo
+            // Volta para scanner após 5 segundos
+            handler.postDelayed({
+                val intent = Intent(this, ScannerActivity::class.java)
+                startActivityForResult(intent, 100)
+            }, 5000)
+        }
     }
 
     private fun limpar() {
         findViewById<TextView>(R.id.txtNome).text = "Escaneie ou digite o código"
         findViewById<TextView>(R.id.txtCodigo).text = "-"
         findViewById<TextView>(R.id.txtPreco).text = "R$ 0,00"
-        edtCodigo.setText("")
+        findViewById<EditText>(R.id.edtCodigo).setText("")
     }
 }
