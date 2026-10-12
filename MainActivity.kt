@@ -2,11 +2,18 @@ package com.quickprice.app
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import java.net.Socket
 
 class MainActivity : AppCompatActivity() {
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val SERVER_IP = "10.10.254.212"
+    private val SERVER_PORT = 63784
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -18,11 +25,32 @@ class MainActivity : AppCompatActivity() {
             startActivityForResult(intent, 100)
         }
 
-        val btnVoltar = findViewById<TextView>(R.id.btnVoltar)
-        btnVoltar.setOnClickListener {
-            val txtNome = findViewById<TextView>(R.id.txtNome)
-            txtNome.text = "OK"
-        }
+        // Testa conexão com servidor TOTVS
+        testarConexao()
+    }
+
+    private fun testarConexao() {
+        Thread {
+            try {
+                val socket = Socket(SERVER_IP, SERVER_PORT)
+                val conectado = socket.isConnected
+                socket.close()
+
+                runOnUiThread {
+                    val txtNome = findViewById<TextView>(R.id.txtNome)
+                    if (conectado) {
+                        txtNome.text = "Servidor TOTVS OK!"
+                    } else {
+                        txtNome.text = "Servidor nao responde"
+                    }
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    val txtNome = findViewById<TextView>(R.id.txtNome)
+                    txtNome.text = "Erro: " + e.message
+                }
+            }
+        }.start()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -32,6 +60,7 @@ class MainActivity : AppCompatActivity() {
             codigo?.let {
                 val txtCodigo = findViewById<TextView>(R.id.txtCodigo)
                 txtCodigo.text = it
+                // Aqui vai a consulta no TOTVS
             }
         }
     }
