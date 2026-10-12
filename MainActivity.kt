@@ -6,7 +6,7 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 
-class MainActivity : AppCompatActivity {
+class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -16,6 +16,12 @@ class MainActivity : AppCompatActivity {
         btnScan.setOnClickListener {
             val intent = Intent(this, ScannerActivity::class.java)
             startActivityForResult(intent, 100)
+        }
+
+        val btnVoltar = findViewById<TextView>(R.id.btnVoltar)
+        btnVoltar.setOnClickListener {
+            val txtNome = findViewById<TextView>(R.id.txtNome)
+            txtNome.text = "OK"
         }
     }
 
