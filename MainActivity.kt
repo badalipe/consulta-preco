@@ -6,26 +6,13 @@ import android.os.Handler
 import android.os.Looper
 import android.widget.Button
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import java.net.Authenticator
 import java.net.HttpURLConnection
-import java.net.InetSocketAddress
-import java.net.PasswordAuthentication
-import java.net.Proxy
 import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
-
-    // CONFIGURACAO PROXY
-    private val PROXY_IP = "1.1.1.1"
-    private val PROXY_PORTA = 3720
-    private val PROXY_USER = "enilso.barbosa"
-    private val PROXY_PASS = "terra,2026"
-
-    // SERVIDOR TOTVS
     private val SERVER = "http://10.10.254.73:8343"
     private val API = "/SMProdutosAPI/api/v4/produtos/precos-produtos"
     private val EMPRESA = "4"
@@ -34,54 +21,50 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Configura autenticacao do proxy automaticamente
-        configurarProxy()
-
-        val txtStatus = findViewById<TextView>(R.id.txtNome)
-        txtStatus.text = "Proxy configurado! Testando..."
-
         val btnScan = findViewById<Button>(R.id.btnScan)
         btnScan.setOnClickListener {
             val intent = Intent(this, ScannerActivity::class.java)
             startActivityForResult(intent, 100)
         }
 
-        // Testa conexao
-        testarConexao()
+        // Testa API sem seguir redirecionamentos
+        testarAPI()
     }
 
-    private fun configurarProxy() {
-        Authenticator.setDefault(object : Authenticator() {
-            override fun getPasswordAuthentication(): PasswordAuthentication {
-                return PasswordAuthentication(PROXY_USER, PROXY_PASS.toCharArray())
-            }
-        })
-    }
+    private fun testarAPI() {
+        val txtStatus = findViewById<TextView>(R.id.txtNome)
+        txtStatus.text = "Testando conexão..."
 
-    private fun testarConexao() {
         Thread {
             try {
-                val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress(PROXY_IP, PROXY_PORTA))
                 val url = URL(SERVER + API + "?nroEmpresa=" + EMPRESA)
-                val conn = url.openConnection(proxy) as HttpURLConnection
+                val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "GET"
-                conn.connectTimeout = 15000
+                conn.connectTimeout = 10000
+                conn.instanceFollowRedirects = false  // NAO segue redirecionamentos
                 conn.setRequestProperty("Accept", "application/json")
 
                 val code = conn.responseCode
+                val location = conn.getHeaderField("Location")
 
                 runOnUiThread {
-                    val txtStatus = findViewById<TextView>(R.id.txtNome)
-                    if (code == 200) {
-                        txtStatus.text = "CONECTADO! Pronto para escanear."
-                        Toast.makeText(this, "Conectado via proxy!", Toast.LENGTH_LONG).show()
-                    } else {
-                        txtStatus.text = "Servidor respondeu: " + code
+                    when {
+                        code == 200 -> {
+                            txtStatus.text = "API TOTVS OK!"
+                        }
+                        code == 302 || code == 301 -> {
+                            txtStatus.text = "Redireciona para: " + (location ?: "desconhecido")
+                        }
+                        code == 401 || code == 403 -> {
+                            txtStatus.text = "Nao autorizado (precisa login)"
+                        }
+                        else -> {
+                            txtStatus.text = "HTTP " + code
+                        }
                     }
                 }
             } catch (e: Exception) {
                 runOnUiThread {
-                    val txtStatus = findViewById<TextView>(R.id.txtNome)
                     txtStatus.text = "Erro: " + e.message
                 }
             }
@@ -109,17 +92,38 @@ class MainActivity : AppCompatActivity() {
 
         Thread {
             try {
-                val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress(PROXY_IP, PROXY_PORTA))
                 val url = URL(SERVER + API + "?codigoAcesso=" + codigoBarras + "&nroEmpresa=" + EMPRESA)
-                val conn = url.openConnection(proxy) as HttpURLConnection
+                val conn = url.openConnection() as HttpURLConnection
                 conn.requestMethod = "GET"
-                conn.connectTimeout = 15000
+                conn.connectTimeout = 10000
+                conn.instanceFollowRedirects = false
                 conn.setRequestProperty("Accept", "application/json")
 
+                val code = conn.responseCode
                 val response = conn.inputStream.bufferedReader().readText()
 
                 runOnUiThread {
-                    processarJSON(response)
+                    when {
+                        code == 200 -> {
+                            processarJSON(response)
+                        }
+                        code == 302 || code == 301 -> {
+                            txtNome.text = "API redireciona (precisa auth)"
+                            txtPreco.text = "R$ -"
+                        }
+                        code == 401 || code == 403 -> {
+                            txtNome.text = "Nao autorizado"
+                            txtPreco.text = "R$ -"
+                        }
+                        code == 404 -> {
+                            txtNome.text = "Produto nao encontrado"
+                            txtPreco.text = "R$ -"
+                        }
+                        else -> {
+                            txtNome.text = "HTTP " + code
+                            txtPreco.text = "R$ -"
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 runOnUiThread {
@@ -147,7 +151,6 @@ class MainActivity : AppCompatActivity() {
             txtNome.text = nome
             txtPreco.text = if (preco.isNotEmpty()) "R$ " + preco else "R$ -"
 
-            // Volta para scanner
             handler.postDelayed({
                 val intent = Intent(this, ScannerActivity::class.java)
                 startActivityForResult(intent, 100)
