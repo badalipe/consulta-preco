@@ -13,9 +13,19 @@ import java.net.URL
 class MainActivity : AppCompatActivity() {
 
     private val handler = Handler(Looper.getMainLooper())
-    private val SERVER = "http://10.10.254.73:8343"
-    private val API = "/SMProdutosAPI/api/v4/produtos/precos-produtos"
-    private val EMPRESA = "4"
+    private val SERVER_IP = "10.10.254.73"
+
+    // Portas para testar
+    private val portas = listOf(80, 443, 8080, 8343, 3000, 5000, 7000, 9000)
+    private val caminhos = listOf(
+        "/SMProdutosAPI/api/v4/produtos/precos-produtos",
+        "/api/produtos",
+        "/api/preco",
+        "/produtos",
+        "/preco",
+        "/webservice/produtos",
+        "/rest/produtos"
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,45 +37,51 @@ class MainActivity : AppCompatActivity() {
             startActivityForResult(intent, 100)
         }
 
-        // Testa API sem seguir redirecionamentos
-        testarAPI()
+        // Testa todas as portas
+        testarPortas()
     }
 
-    private fun testarAPI() {
+    private fun testarPortas() {
         val txtStatus = findViewById<TextView>(R.id.txtNome)
-        txtStatus.text = "Testando conexão..."
+        txtStatus.text = "Testando portas..."
 
         Thread {
-            try {
-                val url = URL(SERVER + API + "?nroEmpresa=" + EMPRESA)
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 10000
-                conn.instanceFollowRedirects = false  // NAO segue redirecionamentos
-                conn.setRequestProperty("Accept", "application/json")
+            var encontrou = false
 
-                val code = conn.responseCode
-                val location = conn.getHeaderField("Location")
+            for (porta in portas) {
+                for (caminho in caminhos) {
+                    val urlStr = "http://" + SERVER_IP + ":" + porta + caminho
 
-                runOnUiThread {
-                    when {
-                        code == 200 -> {
-                            txtStatus.text = "API TOTVS OK!"
+                    runOnUiThread {
+                        txtStatus.text = "Testando " + porta + "..."
+                    }
+
+                    try {
+                        val url = URL(urlStr)
+                        val conn = url.openConnection() as HttpURLConnection
+                        conn.requestMethod = "GET"
+                        conn.connectTimeout = 3000
+                        conn.instanceFollowRedirects = false
+
+                        val code = conn.responseCode
+
+                        if (code != 404 && code != 000) {
+                            runOnUiThread {
+                                txtStatus.text = "ENCONTRADO! " + porta + " -> HTTP " + code
+                            }
+                            encontrou = true
+                            break
                         }
-                        code == 302 || code == 301 -> {
-                            txtStatus.text = "Redireciona para: " + (location ?: "desconhecido")
-                        }
-                        code == 401 || code == 403 -> {
-                            txtStatus.text = "Nao autorizado (precisa login)"
-                        }
-                        else -> {
-                            txtStatus.text = "HTTP " + code
-                        }
+                    } catch (e: Exception) {
+                        // Continua testando
                     }
                 }
-            } catch (e: Exception) {
+                if (encontrou) break
+            }
+
+            if (!encontrou) {
                 runOnUiThread {
-                    txtStatus.text = "Erro: " + e.message
+                    txtStatus.text = "Nenhuma porta aberta encontrada"
                 }
             }
         }.start()
@@ -78,87 +94,8 @@ class MainActivity : AppCompatActivity() {
             codigo?.let {
                 val txtCodigo = findViewById<TextView>(R.id.txtCodigo)
                 txtCodigo.text = it
-                buscarPreco(it)
+                // Aqui vai a busca quando encontrar a porta
             }
-        }
-    }
-
-    private fun buscarPreco(codigoBarras: String) {
-        val txtNome = findViewById<TextView>(R.id.txtNome)
-        val txtPreco = findViewById<TextView>(R.id.txtPreco)
-
-        txtNome.text = "Buscando..."
-        txtPreco.text = "..."
-
-        Thread {
-            try {
-                val url = URL(SERVER + API + "?codigoAcesso=" + codigoBarras + "&nroEmpresa=" + EMPRESA)
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 10000
-                conn.instanceFollowRedirects = false
-                conn.setRequestProperty("Accept", "application/json")
-
-                val code = conn.responseCode
-                val response = conn.inputStream.bufferedReader().readText()
-
-                runOnUiThread {
-                    when {
-                        code == 200 -> {
-                            processarJSON(response)
-                        }
-                        code == 302 || code == 301 -> {
-                            txtNome.text = "API redireciona (precisa auth)"
-                            txtPreco.text = "R$ -"
-                        }
-                        code == 401 || code == 403 -> {
-                            txtNome.text = "Nao autorizado"
-                            txtPreco.text = "R$ -"
-                        }
-                        code == 404 -> {
-                            txtNome.text = "Produto nao encontrado"
-                            txtPreco.text = "R$ -"
-                        }
-                        else -> {
-                            txtNome.text = "HTTP " + code
-                            txtPreco.text = "R$ -"
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    txtNome.text = "Erro: " + e.message
-                    txtPreco.text = "R$ -"
-                }
-            }
-        }.start()
-    }
-
-    private fun processarJSON(json: String) {
-        val txtNome = findViewById<TextView>(R.id.txtNome)
-        val txtPreco = findViewById<TextView>(R.id.txtPreco)
-
-        try {
-            val nomeRegex = Regex("\"descricao\":\"([^\"]+)\"")
-            val precoRegex = Regex("\"preco\":([0-9.]+)")
-
-            val nomeMatch = nomeRegex.find(json)
-            val precoMatch = precoRegex.find(json)
-
-            val nome = nomeMatch?.groupValues?.get(1) ?: "Nao encontrado"
-            val preco = precoMatch?.groupValues?.get(1) ?: ""
-
-            txtNome.text = nome
-            txtPreco.text = if (preco.isNotEmpty()) "R$ " + preco else "R$ -"
-
-            handler.postDelayed({
-                val intent = Intent(this, ScannerActivity::class.java)
-                startActivityForResult(intent, 100)
-            }, 5000)
-
-        } catch (e: Exception) {
-            txtNome.text = "Erro ao processar"
-            txtPreco.text = "R$ -"
         }
     }
 }
