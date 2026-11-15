@@ -1,19 +1,38 @@
 package com.quickprice.app
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.speech.RecognizerIntent
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import java.net.HttpURLConnection
 import java.net.URL
 
 class MainActivity : AppCompatActivity() {
 
-    private val handler = Handler(Looper.getMainLooper())
     private val SERVER_IP = "10.10.254.73"
+
+    private val reconhecimentoVoz = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { resultado ->
+        if (resultado.resultCode == RESULT_OK) {
+            val textoReconhecido = resultado.data
+                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                ?.firstOrNull()
+                ?.trim()
+
+            if (!textoReconhecido.isNullOrBlank()) {
+                preencherBusca(textoReconhecido)
+            } else {
+                Toast.makeText(this, "Não foi possível reconhecer a fala. Tente novamente.", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     // Portas para testar
     private val portas = listOf(80, 443, 8080, 8343, 3000, 5000, 7000, 9000)
@@ -37,8 +56,48 @@ class MainActivity : AppCompatActivity() {
             startActivityForResult(intent, 100)
         }
 
+        findViewById<Button>(R.id.btnBuscaVoz).setOnClickListener {
+            iniciarBuscaPorVoz()
+        }
+
+        findViewById<EditText>(R.id.edtCodigo).setOnEditorActionListener { _, _, _ ->
+            val consulta = findViewById<EditText>(R.id.edtCodigo).text.toString().trim()
+            if (consulta.isNotEmpty()) {
+                preencherBusca(consulta)
+                true
+            } else {
+                false
+            }
+        }
+
         // Testa todas as portas
         testarPortas()
+    }
+
+    private fun iniciarBuscaPorVoz() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "pt-BR")
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Diga o nome do produto ou o código de barras")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+
+        try {
+            reconhecimentoVoz.launch(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(
+                this,
+                "Não há um serviço de reconhecimento de voz disponível neste dispositivo.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private fun preencherBusca(consulta: String) {
+        findViewById<EditText>(R.id.edtCodigo).setText(consulta)
+        findViewById<EditText>(R.id.edtCodigo).setSelection(consulta.length)
+        findViewById<TextView>(R.id.txtCodigo).text = consulta
     }
 
     private fun testarPortas() {
@@ -92,9 +151,7 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == 100 && resultCode == RESULT_OK) {
             val codigo = data?.getStringExtra("codigo")
             codigo?.let {
-                val txtCodigo = findViewById<TextView>(R.id.txtCodigo)
-                txtCodigo.text = it
-                // Aqui vai a busca quando encontrar a porta
+                preencherBusca(it)
             }
         }
     }
