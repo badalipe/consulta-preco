@@ -27,6 +27,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import java.security.MessageDigest
@@ -47,6 +48,14 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var imageRequestToken = 0
     private var lastOffNameSearchAtMs = 0L
     private var scanToneGenerator: ToneGenerator? = null
+    private lateinit var productCache: ProductCache
+    private var barcodeForCurrentSearch: String? = null
+    private var externalProductNameForCurrentBarcode: String? = null
+    private var barcodeLookupFailed = false
+    private var productFoundForCurrentSearch = false
+    private var fallbackAttemptedForCurrentSearch = false
+
+    private data class ExternalProductInfo(val name: String, val imageUrl: String?)
 
     private lateinit var webViewSession: WebView
     private lateinit var txtStatus: TextView
@@ -97,6 +106,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        productCache = ProductCache(applicationContext)
 
         txtStatus = findViewById(R.id.txtStatus)
         txtNome = findViewById(R.id.txtNome)
@@ -165,6 +175,7 @@ class MainActivity : AppCompatActivity() {
             webViewSession.stopLoading()
             webViewSession.destroy()
         }
+        if (::productCache.isInitialized) productCache.close()
         super.onDestroy()
     }
 
@@ -472,6 +483,17 @@ class MainActivity : AppCompatActivity() {
         val termo = consulta.trim()
         if (termo.isEmpty()) return
 
+        idConsultaAtual += 1
+        val idConsulta = idConsultaAtual
+        val ean = normalizarEan(termo)
+        val cached = ean?.let { productCache.find(it) }
+        val termoPesquisa = cached?.productCode?.takeIf { it.isNotBlank() } ?: termo
+        barcodeForCurrentSearch = ean
+        externalProductNameForCurrentBarcode = cached?.name?.takeIf { it.isNotBlank() }
+        barcodeLookupFailed = false
+        productFoundForCurrentSearch = false
+        fallbackAttemptedForCurrentSearch = false
+
         limparImagemProduto()
         edtCodigo.setText(termo)
         edtCodigo.setSelection(termo.length)
@@ -480,10 +502,21 @@ class MainActivity : AppCompatActivity() {
         txtPreco.text = "R$ —"
         txtStatus.text = if (sessaoPronta) "Consultando preço..." else "Reconectando sessão..."
 
-        idConsultaAtual += 1
-        consultaPendente = termo
+        if (cached != null) {
+            if (cached.name.isNotBlank()) txtNome.text = cached.name
+            if (cached.productCode.isNotBlank()) txtCodigo.text = "Código: ${cached.productCode}"
+            if (cached.family.isNotBlank()) txtCategoria.text = cached.family
+            if (cached.imageUrl.isNotBlank()) mostrarImagemUrl(cached.imageUrl)
+        }
+
+        // A primeira consulta da foto começa logo após a leitura do EAN, sem esperar pelo preço.
+        if (ean != null && cached?.imageUrl.isNullOrBlank()) {
+            carregarImagemProduto(ean, cached?.name.orEmpty(), ean)
+        }
+
+        consultaPendente = termoPesquisa
         if (sessaoPronta) {
-            enviarConsultaAoSite(termo, idConsultaAtual)
+            enviarConsultaAoSite(termoPesquisa, idConsulta)
         } else {
             carregarConsultaUnitario()
         }
@@ -575,6 +608,8 @@ class MainActivity : AppCompatActivity() {
                 if (tentativa < 5) {
                     mainHandler.postDelayed({ lerResultadoDaBusca(termo, idConsulta, tentativa + 1) }, 500L)
                 } else {
+                    barcodeLookupFailed = barcodeForCurrentSearch != null
+                    if (tentarPesquisaPorNome(idConsulta)) return@evaluateJavascript
                     txtNome.text = "Produto não encontrado"
                     txtCodigo.text = "Consulta: $termo"
                     txtPreco.text = "R$ —"
@@ -586,15 +621,24 @@ class MainActivity : AppCompatActivity() {
             val nome = data.optString("name").ifBlank { termo }
             val codigo = data.optString("code").ifBlank { termo }
             val preco = data.optString("price")
+            val familia = data.optString("family")
+            productFoundForCurrentSearch = true
             txtNome.text = nome
             txtCodigo.text = "Código: $codigo"
             txtPreco.text = if (preco.isNotBlank()) "R$ $preco" else "R$ —"
-            txtCategoria.text = data.optString("family").ifBlank { "—" }
+            txtCategoria.text = familia.ifBlank { "—" }
             txtPeso.text = Regex("\\b\\d+(?:[,.]\\d+)?\\s?(?:kg|g|ml|l)\\b", RegexOption.IGNORE_CASE)
                 .find(nome)?.value ?: "—"
             txtValidade.text = "—"
-            val codigoImagem = if (normalizarEan(termo) != null) termo else codigo
-            carregarImagemProduto(codigoImagem, nome)
+            val ean = normalizarEan(edtCodigo.text.toString())
+            if (ean != null) productCache.saveProduct(ean, codigo, nome, familia)
+            val imagemEmCache = ean?.let { productCache.find(it)?.imageUrl }.orEmpty()
+            if (imagemEmCache.isNotBlank()) {
+                mostrarImagemUrl(imagemEmCache)
+            } else {
+                val codigoImagem = ean ?: codigo
+                carregarImagemProduto(codigoImagem, nome, ean)
+            }
             txtStatus.text = if (preco.isNotBlank()) "Preço atualizado" else "Produto encontrado; preço indisponível"
         }
     }
@@ -606,7 +650,12 @@ class MainActivity : AppCompatActivity() {
         imgProduto.setImageResource(R.drawable.ic_placeholder_box)
     }
 
-    private fun carregarImagemProduto(codigo: String, nomeProduto: String) {
+    private fun carregarImagemProduto(
+        codigo: String,
+        nomeProduto: String,
+        cacheBarcode: String? = null,
+        searchId: Int = idConsultaAtual
+    ) {
         val ean = normalizarEan(codigo)
         val token = ++imageRequestToken
         if (ean == null && nomeProduto.trim().length < 3) {
@@ -617,30 +666,67 @@ class MainActivity : AppCompatActivity() {
         runCatching { Glide.with(this).clear(imgProduto) }
         imgProduto.setImageResource(R.drawable.ic_placeholder_box)
         imageExecutor.execute {
-            val urlPorCodigo = if (ean != null) {
+            val infoExterna = if (ean != null) {
+                runCatching { buscarProdutoOpenFoodFacts(ean) }.getOrNull()
+            } else null
+            val nomeExterno = infoExterna?.name.orEmpty()
+            val barcode = cacheBarcode?.takeIf { it.isNotBlank() }
+            if (barcode != null && nomeExterno.isNotBlank()) {
+                runCatching { productCache.saveDiscoveredName(barcode, nomeExterno) }
+                mainHandler.post {
+                    if (searchId != idConsultaAtual || barcodeForCurrentSearch != barcode) return@post
+                    externalProductNameForCurrentBarcode = nomeExterno
+                    if (barcodeLookupFailed && !productFoundForCurrentSearch) {
+                        tentarPesquisaPorNome(searchId)
+                    }
+                }
+            }
+            val urlPorCodigo = infoExterna?.imageUrl ?: if (ean != null) {
                 runCatching { buscarImagemBeepScan(ean) }.getOrNull()
-                    ?: runCatching { buscarImagemOpenFoodFacts(ean) }.getOrNull()
-            } else {
-                null
+            } else null
+            val nomeParaImagem = nomeProduto.ifBlank { nomeExterno }
+            val url = urlPorCodigo
+                ?: runCatching { buscarImagemOpenFoodFactsPorNome(nomeParaImagem) }.getOrNull()
+            if (!url.isNullOrBlank() && barcode != null) {
+                runCatching { productCache.saveImage(barcode, url) }
             }
             if (token != imageRequestToken) return@execute
-            val url = urlPorCodigo
-                ?: runCatching { buscarImagemOpenFoodFactsPorNome(nomeProduto) }.getOrNull()
 
             runOnUiThread {
                 if (token != imageRequestToken || isFinishing || isDestroyed) return@runOnUiThread
                 if (url.isNullOrBlank()) {
                     imgProduto.setImageResource(R.drawable.ic_placeholder_box)
                 } else {
-                    Glide.with(this@MainActivity)
-                        .load(url)
-                        .placeholder(R.drawable.ic_placeholder_box)
-                        .error(R.drawable.ic_placeholder_box)
-                        .centerInside()
-                        .into(imgProduto)
+                    mostrarImagemUrl(url)
                 }
             }
         }
+    }
+
+    private fun mostrarImagemUrl(url: String) {
+        if (!::imgProduto.isInitialized || url.isBlank()) return
+        Glide.with(this)
+            .load(url)
+            .diskCacheStrategy(DiskCacheStrategy.ALL)
+            .placeholder(R.drawable.ic_placeholder_box)
+            .error(R.drawable.ic_placeholder_box)
+            .centerInside()
+            .into(imgProduto)
+    }
+
+    private fun tentarPesquisaPorNome(idConsulta: Int): Boolean {
+        if (idConsulta != idConsultaAtual || productFoundForCurrentSearch || !barcodeLookupFailed ||
+            fallbackAttemptedForCurrentSearch
+        ) return false
+        val nome = externalProductNameForCurrentBarcode?.trim().orEmpty()
+        if (nome.length < 3 || nome.equals(edtCodigo.text.toString().trim(), ignoreCase = true)) return false
+
+        fallbackAttemptedForCurrentSearch = true
+        barcodeLookupFailed = false
+        txtNome.text = nome
+        txtStatus.text = "Código não localizado; a procurar pelo nome..."
+        enviarConsultaAoSite(nome, idConsulta)
+        return true
     }
 
     private fun normalizarEan(codigo: String): String? {
@@ -664,9 +750,9 @@ class MainActivity : AppCompatActivity() {
         return candidatos.firstOrNull(::urlDeImagemValido)
     }
 
-    private fun buscarImagemOpenFoodFacts(ean: String): String? {
+    private fun buscarProdutoOpenFoodFacts(ean: String): ExternalProductInfo? {
         val resposta = Jsoup.connect(
-            "https://world.openfoodfacts.org/api/v2/product/$ean?fields=code,image_front_url,image_url,image_small_url"
+            "https://world.openfoodfacts.org/api/v2/product/$ean?fields=code,product_name,product_name_pt,image_front_url,image_url,image_small_url"
         )
             .ignoreContentType(true)
             .userAgent("ConsultaPreco/1.0 (Android)")
@@ -675,9 +761,14 @@ class MainActivity : AppCompatActivity() {
             .body()
 
         val produto = JSONObject(resposta).optJSONObject("product") ?: return null
-        return listOf("image_front_url", "image_url", "image_small_url")
+        val nome = listOf("product_name_pt", "product_name")
+            .map { produto.optString(it).trim() }
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+        val imagem = listOf("image_front_url", "image_url", "image_small_url")
             .map { produto.optString(it) }
             .firstOrNull(::urlDeImagemValido)
+        return if (nome.isNotBlank() || imagem != null) ExternalProductInfo(nome, imagem) else null
     }
 
     private fun buscarImagemOpenFoodFactsPorNome(nome: String): String? {
