@@ -29,7 +29,21 @@ jobs:
           for f in *.kt; do [ -f "$f" ] && mv "$f" app/src/main/java/com/quickprice/app/; done
           [ -f AndroidManifest.xml ] && mv AndroidManifest.xml app/src/main/
 
+      - name: Validar segredos de build
+        env:
+          CARTAZ_USERNAME: ${{ secrets.CARTAZ_USERNAME }}
+          CARTAZ_PASSWORD: ${{ secrets.CARTAZ_PASSWORD }}
+          APP_FIRST_PASSWORD: ${{ secrets.APP_FIRST_PASSWORD }}
+        run: |
+          test -n "$CARTAZ_USERNAME" || { echo "Falta o segredo CARTAZ_USERNAME"; exit 1; }
+          test -n "$CARTAZ_PASSWORD" || { echo "Falta o segredo CARTAZ_PASSWORD"; exit 1; }
+          test -n "$APP_FIRST_PASSWORD" || { echo "Falta o segredo APP_FIRST_PASSWORD"; exit 1; }
+
       - name: Compilar APK
+        env:
+          ORG_GRADLE_PROJECT_cartazUsername: ${{ secrets.CARTAZ_USERNAME }}
+          ORG_GRADLE_PROJECT_cartazPassword: ${{ secrets.CARTAZ_PASSWORD }}
+          ORG_GRADLE_PROJECT_appFirstPassword: ${{ secrets.APP_FIRST_PASSWORD }}
         run: gradle assembleDebug --no-daemon
 
       - name: PROCURAR APK
