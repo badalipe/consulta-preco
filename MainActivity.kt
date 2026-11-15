@@ -124,7 +124,7 @@ class MainActivity : AppCompatActivity() {
 
                         val code = conn.responseCode
 
-                        if (code != 404 && code != 000) {
+                        if (code != HttpURLConnection.HTTP_NOT_FOUND) {
                             runOnUiThread {
                                 txtStatus.text = "ENCONTRADO! " + porta + " -> HTTP " + code
                             }
