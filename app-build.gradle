@@ -3,6 +3,24 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def quoteForBuildConfig = { value ->
+    def escaped = value.toString()
+        .replace('\\', '\\\\')
+        .replace('"', '\\"')
+        .replace('\n', '\\n')
+        .replace('\r', '\\r')
+    return '"' + escaped + '"'
+}
+
+def cartazUsername = providers.gradleProperty('cartazUsername').orElse('').get()
+def cartazPassword = providers.gradleProperty('cartazPassword').orElse('').get()
+def appFirstPassword = providers.gradleProperty('appFirstPassword').orElse('').get()
+def appFirstPasswordHash = appFirstPassword.isEmpty() ? '' :
+    java.security.MessageDigest.getInstance('SHA-256')
+        .digest(appFirstPassword.getBytes('UTF-8'))
+        .collect { String.format('%02x', it & 0xff) }
+        .join()
+
 android {
     namespace 'com.quickprice.app'
     compileSdk 34
@@ -13,12 +31,26 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
+
+        buildConfigField "String", "CARTAZ_BASE_URL", quoteForBuildConfig("https://rmarket.cartazfacil.pro")
+        buildConfigField "String", "CARTAZ_USERNAME", quoteForBuildConfig(cartazUsername)
+        buildConfigField "String", "CARTAZ_PASSWORD", quoteForBuildConfig(cartazPassword)
+        buildConfigField "String", "APP_FIRST_PASSWORD_HASH", quoteForBuildConfig(appFirstPasswordHash)
     }
-    buildTypes { release { minifyEnabled false } }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        release { minifyEnabled false }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+
     kotlinOptions { jvmTarget = '17' }
 }
 
