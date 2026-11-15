@@ -139,26 +139,49 @@
         android:layout_marginHorizontal="20dp"
         android:layout_marginTop="16dp"
         android:background="#1A1A2E"
-        android:hint="Digite o código de barras"
+        android:hint="Fale ou digite produto/código"
         android:imeOptions="actionSearch"
-        android:inputType="number"
+        android:inputType="textCapSentences|textNoSuggestions"
         android:maxLines="1"
         android:padding="12dp"
         android:textColor="#FFFFFF"
         android:textColorHint="#555555"
         android:textSize="14sp" />
 
-    <Button
-        android:id="@+id/btnScan"
-        android:layout_width="120dp"
-        android:layout_height="120dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_margin="16dp"
-        android:backgroundTint="#0066FF"
-        android:text="SCAN"
-        android:textColor="#FFFFFF"
-        android:textSize="20sp"
-        android:textStyle="bold" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp">
+
+        <Button
+            android:id="@+id/btnBuscaVoz"
+            android:layout_width="0dp"
+            android:layout_height="88dp"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:backgroundTint="#00A884"
+            android:contentDescription="Pesquisar produto por voz"
+            android:text="FALAR\nBUSCA"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnScan"
+            android:layout_width="0dp"
+            android:layout_height="88dp"
+            android:layout_weight="1"
+            android:layout_margin="4dp"
+            android:backgroundTint="#0066FF"
+            android:contentDescription="Ler código de barras com a câmara"
+            android:text="SCAN"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
