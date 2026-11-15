@@ -11,7 +11,6 @@
         android:background="#0066FF"
         android:gravity="center_vertical"
         android:paddingHorizontal="16dp">
-
         <TextView
             android:id="@+id/btnVoltar"
             android:layout_width="wrap_content"
@@ -20,7 +19,6 @@
             android:textColor="#FFFFFF"
             android:textSize="26sp"
             android:textStyle="bold" />
-
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -30,7 +28,6 @@
             android:textColor="#FFFFFF"
             android:textSize="20sp"
             android:textStyle="bold" />
-
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -43,7 +40,6 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="20dp">
-
         <TextView
             android:id="@+id/txtNome"
             android:layout_width="match_parent"
@@ -52,7 +48,6 @@
             android:textColor="#FFFFFF"
             android:textSize="26sp"
             android:textStyle="bold" />
-
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -60,7 +55,6 @@
             android:text="Código de Barras"
             android:textColor="#888888"
             android:textSize="13sp" />
-
         <TextView
             android:id="@+id/txtCodigo"
             android:layout_width="match_parent"
@@ -83,7 +77,6 @@
         android:layout_marginHorizontal="40dp"
         android:layout_marginVertical="16dp"
         android:padding="20dp">
-
         <TextView
             android:id="@+id/txtPreco"
             android:layout_width="match_parent"
@@ -100,7 +93,6 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:paddingHorizontal="20dp">
-
         <TextView
             android:id="@+id/txtCategoria"
             android:layout_width="0dp"
@@ -110,7 +102,6 @@
             android:text="📦 -"
             android:textColor="#FFFFFF"
             android:textSize="12sp" />
-
         <TextView
             android:id="@+id/txtPeso"
             android:layout_width="0dp"
@@ -120,7 +111,6 @@
             android:text="⚖️ -"
             android:textColor="#FFFFFF"
             android:textSize="12sp" />
-
         <TextView
             android:id="@+id/txtValidade"
             android:layout_width="0dp"
@@ -155,7 +145,6 @@
         android:gravity="center"
         android:paddingHorizontal="12dp"
         android:paddingVertical="8dp">
-
         <Button
             android:id="@+id/btnBuscaVoz"
             android:layout_width="0dp"
@@ -168,7 +157,6 @@
             android:textColor="#FFFFFF"
             android:textSize="16sp"
             android:textStyle="bold" />
-
         <Button
             android:id="@+id/btnScan"
             android:layout_width="0dp"
@@ -188,7 +176,6 @@
         android:layout_height="52dp"
         android:orientation="horizontal"
         android:gravity="center">
-
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -197,7 +184,6 @@
             android:text="🏠 Início"
             android:textColor="#FFFFFF"
             android:textSize="12sp" />
-
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
