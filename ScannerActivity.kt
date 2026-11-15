@@ -15,16 +15,9 @@ class ScannerActivity : AppCompatActivity() {
         scanner.startScan()
             .addOnSuccessListener { barcode ->
                 val codigo = barcode.rawValue
-                codigo?.let {
-                    try {
-                        val tg = android.media.ToneGenerator(
-                            android.media.AudioManager.STREAM_NOTIFICATION, 100
-                        )
-                        tg.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 200)
-                    } catch (e: Exception) { }
-
+                if (!codigo.isNullOrBlank()) {
                     val intent = android.content.Intent().apply {
-                        putExtra("codigo", it)
+                        putExtra("codigo", codigo)
                     }
                     setResult(RESULT_OK, intent)
                     finish()

@@ -6,6 +6,9 @@ Aplicativo Android para consultar produtos e preços do Cartaz Fácil. A tela fo
 
 A pesquisa pode ser iniciada digitando o nome ou código, tocando no microfone para falar em português do Brasil ou lendo o código de barras com a câmera. O app envia a consulta ao Cartaz Fácil e mostra o nome do produto, o código e o preço encontrado. O conteúdo do site é carregado num WebView interno e não aparece na tela principal.
 
+Depois de uma leitura válida, o app toca um bip de confirmação. A foto é procurada pelo EAN na BeepScan e, se não estiver disponível, no Open Food Facts. A imagem depende de o produto existir nesses catálogos e de haver ligação à internet; se não houver foto, permanece o desenho de substituição.
+Se o Cartaz Fácil devolver apenas um código interno em vez do EAN, o app tenta localizar a imagem pelo nome do produto no Open Food Facts. Como as fotos são fornecidas por catálogos externos, alguns produtos ainda podem não ter imagem disponível.
+
 Na primeira abertura após instalar, o app pede uma senha de acesso local. Depois da validação, registra o desbloqueio no aparelho e não pergunta novamente, a menos que os dados do app sejam apagados ou que ele seja reinstalado.
 
 ## Sessão e reconexão

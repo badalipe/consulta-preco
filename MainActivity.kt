@@ -2,6 +2,8 @@ package com.quickprice.app
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -16,6 +18,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -23,9 +26,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.bumptech.glide.Glide
 import org.json.JSONObject
+import org.jsoup.Jsoup
 import java.security.MessageDigest
 import java.util.Locale
+import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
 
@@ -37,6 +43,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val imageExecutor = Executors.newSingleThreadExecutor()
+    @Volatile private var imageRequestToken = 0
+    private var lastOffNameSearchAtMs = 0L
+    private var scanToneGenerator: ToneGenerator? = null
 
     private lateinit var webViewSession: WebView
     private lateinit var txtStatus: TextView
@@ -47,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var txtPeso: TextView
     private lateinit var txtValidade: TextView
     private lateinit var edtCodigo: EditText
+    private lateinit var imgProduto: ImageView
 
     private var acessoLiberado = false
     private var sessaoPronta = false
@@ -95,6 +106,7 @@ class MainActivity : AppCompatActivity() {
         txtPeso = findViewById(R.id.txtPeso)
         txtValidade = findViewById(R.id.txtValidade)
         edtCodigo = findViewById(R.id.edtCodigo)
+        imgProduto = findViewById(R.id.imgProduto)
 
         findViewById<FloatingActionButton>(R.id.btnScan).setOnClickListener {
             startActivityForResult(Intent(this, ScannerActivity::class.java), 100)
@@ -145,6 +157,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
+        imageRequestToken += 1
+        imageExecutor.shutdownNow()
+        scanToneGenerator?.let { tone -> runCatching { tone.stopTone(); tone.release() } }
+        scanToneGenerator = null
         if (::webViewSession.isInitialized) {
             webViewSession.stopLoading()
             webViewSession.destroy()
@@ -456,6 +472,7 @@ class MainActivity : AppCompatActivity() {
         val termo = consulta.trim()
         if (termo.isEmpty()) return
 
+        limparImagemProduto()
         edtCodigo.setText(termo)
         edtCodigo.setSelection(termo.length)
         txtNome.text = "Pesquisando: $termo"
@@ -576,8 +593,160 @@ class MainActivity : AppCompatActivity() {
             txtPeso.text = Regex("\\b\\d+(?:[,.]\\d+)?\\s?(?:kg|g|ml|l)\\b", RegexOption.IGNORE_CASE)
                 .find(nome)?.value ?: "—"
             txtValidade.text = "—"
+            val codigoImagem = if (normalizarEan(termo) != null) termo else codigo
+            carregarImagemProduto(codigoImagem, nome)
             txtStatus.text = if (preco.isNotBlank()) "Preço atualizado" else "Produto encontrado; preço indisponível"
         }
+    }
+
+    private fun limparImagemProduto() {
+        imageRequestToken += 1
+        if (!::imgProduto.isInitialized) return
+        runCatching { Glide.with(this).clear(imgProduto) }
+        imgProduto.setImageResource(R.drawable.ic_placeholder_box)
+    }
+
+    private fun carregarImagemProduto(codigo: String, nomeProduto: String) {
+        val ean = normalizarEan(codigo)
+        val token = ++imageRequestToken
+        if (ean == null && nomeProduto.trim().length < 3) {
+            imgProduto.setImageResource(R.drawable.ic_placeholder_box)
+            return
+        }
+
+        runCatching { Glide.with(this).clear(imgProduto) }
+        imgProduto.setImageResource(R.drawable.ic_placeholder_box)
+        imageExecutor.execute {
+            val urlPorCodigo = if (ean != null) {
+                runCatching { buscarImagemBeepScan(ean) }.getOrNull()
+                    ?: runCatching { buscarImagemOpenFoodFacts(ean) }.getOrNull()
+            } else {
+                null
+            }
+            if (token != imageRequestToken) return@execute
+            val url = urlPorCodigo
+                ?: runCatching { buscarImagemOpenFoodFactsPorNome(nomeProduto) }.getOrNull()
+
+            runOnUiThread {
+                if (token != imageRequestToken || isFinishing || isDestroyed) return@runOnUiThread
+                if (url.isNullOrBlank()) {
+                    imgProduto.setImageResource(R.drawable.ic_placeholder_box)
+                } else {
+                    Glide.with(this@MainActivity)
+                        .load(url)
+                        .placeholder(R.drawable.ic_placeholder_box)
+                        .error(R.drawable.ic_placeholder_box)
+                        .centerInside()
+                        .into(imgProduto)
+                }
+            }
+        }
+    }
+
+    private fun normalizarEan(codigo: String): String? {
+        if (!codigo.all { it in '0'..'9' || it.isWhitespace() || it == '-' }) return null
+        val digitos = codigo.filter { it in '0'..'9' }
+        return digitos.takeIf { it.length in 8..14 }
+    }
+
+    private fun buscarImagemBeepScan(ean: String): String? {
+        val pagina = Jsoup.connect("https://www.beepscan.com/barcode/$ean")
+            .userAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36")
+            .timeout(8_000)
+            .get()
+
+        val candidatos = buildList {
+            pagina.selectFirst("meta[property=og:image]")?.attr("abs:content")?.let(::add)
+            pagina.select("img[src]").forEach { imagem ->
+                imagem.attr("abs:src").takeIf { it.isNotBlank() }?.let(::add)
+            }
+        }
+        return candidatos.firstOrNull(::urlDeImagemValido)
+    }
+
+    private fun buscarImagemOpenFoodFacts(ean: String): String? {
+        val resposta = Jsoup.connect(
+            "https://world.openfoodfacts.org/api/v2/product/$ean?fields=code,image_front_url,image_url,image_small_url"
+        )
+            .ignoreContentType(true)
+            .userAgent("ConsultaPreco/1.0 (Android)")
+            .timeout(8_000)
+            .execute()
+            .body()
+
+        val produto = JSONObject(resposta).optJSONObject("product") ?: return null
+        return listOf("image_front_url", "image_url", "image_small_url")
+            .map { produto.optString(it) }
+            .firstOrNull(::urlDeImagemValido)
+    }
+
+    private fun buscarImagemOpenFoodFactsPorNome(nome: String): String? {
+        val termo = nome.trim()
+        if (termo.length < 3) return null
+
+        val esperaMs = 6_500L - (System.currentTimeMillis() - lastOffNameSearchAtMs)
+        if (esperaMs > 0) Thread.sleep(esperaMs)
+        lastOffNameSearchAtMs = System.currentTimeMillis()
+
+        val resposta = Jsoup.connect("https://search.openfoodfacts.org/search")
+            .data("q", termo)
+            .data("langs", "pt,en")
+            .data("page_size", "10")
+            .data("fields", "code,product_name,image_front_url,image_url")
+            .ignoreContentType(true)
+            .userAgent("ConsultaPreco/1.0 (Android)")
+            .timeout(8_000)
+            .execute()
+            .body()
+
+        val hits = JSONObject(resposta).optJSONArray("hits") ?: return null
+        val palavras = termo.lowercase(Locale.ROOT)
+            .split(Regex("[^\\p{L}\\p{N}]+"))
+            .filter { it.length >= 3 }
+            .toSet()
+
+        for (indice in 0 until hits.length()) {
+            val produto = hits.optJSONObject(indice) ?: continue
+            val nomeCatalogo = produto.optString("product_name").lowercase(Locale.ROOT)
+            val palavrasCatalogo = nomeCatalogo.split(Regex("[^\\p{L}\\p{N}]+"))
+            if (palavras.isNotEmpty() && palavras.intersect(palavrasCatalogo.toSet()).isEmpty()) continue
+
+            val url = listOf("image_front_url", "image_url")
+                .map { produto.optString(it) }
+                .firstOrNull(::urlDeImagemValido)
+            if (url != null) return url
+        }
+        return null
+    }
+
+    private fun urlDeImagemValido(url: String): Boolean {
+        val limpa = url.substringBefore('?')
+        return url.startsWith("https://", ignoreCase = true) &&
+            !limpa.endsWith(".svg", ignoreCase = true) &&
+            !url.contains("logo", ignoreCase = true) &&
+            !url.contains("favicon", ignoreCase = true) &&
+            !url.contains("placeholder", ignoreCase = true)
+    }
+
+    private fun reproduzirBipScanner() {
+        scanToneGenerator?.let { tone -> runCatching { tone.stopTone(); tone.release() } }
+        val tone = runCatching { ToneGenerator(AudioManager.STREAM_MUSIC, 100) }.getOrNull() ?: return
+        scanToneGenerator = tone
+        val iniciou = runCatching {
+            tone.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+        }.getOrDefault(false)
+        if (!iniciou) {
+            runCatching { tone.release() }
+            if (scanToneGenerator === tone) scanToneGenerator = null
+            return
+        }
+
+        mainHandler.postDelayed({
+            if (scanToneGenerator === tone) {
+                runCatching { tone.stopTone(); tone.release() }
+                scanToneGenerator = null
+            }
+        }, 350L)
     }
 
     private fun esconderTeclado() {
@@ -590,7 +759,10 @@ class MainActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 100 && resultCode == RESULT_OK) {
             val codigo = data?.getStringExtra("codigo")
-            if (!codigo.isNullOrBlank()) pesquisarProduto(codigo)
+            if (!codigo.isNullOrBlank()) {
+                reproduzirBipScanner()
+                pesquisarProduto(codigo)
+            }
         }
     }
 }
