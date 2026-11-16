@@ -45,15 +45,38 @@
                 android:textColor="#9AA4BF"
                 android:textSize="14sp" />
 
-            <ImageView
-                android:id="@+id/imgProduto"
+            <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="190dp"
                 android:layout_marginTop="8dp"
-                android:contentDescription="Imagem do produto"
-                android:importantForAccessibility="no"
-                android:scaleType="fitCenter"
-                android:src="@drawable/ic_placeholder_box" />
+                android:background="#0A0F1F"
+                android:clipChildren="true"
+                android:clipToPadding="true">
+
+                <ImageView
+                    android:id="@+id/imgProdutoGlow"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:importantForAccessibility="no"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_placeholder_box" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_photo_glow_tint"
+                    android:importantForAccessibility="no" />
+
+                <ImageView
+                    android:id="@+id/imgProduto"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="Imagem do produto"
+                    android:importantForAccessibility="no"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_placeholder_box" />
+            </FrameLayout>
 
             <TextView
                 android:id="@+id/txtNome"

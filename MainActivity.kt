@@ -28,6 +28,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.engine.DiskCacheStrategy
+import jp.wasabeef.glide.transformations.BlurTransformation
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import java.security.MessageDigest
@@ -67,6 +68,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var txtValidade: TextView
     private lateinit var edtCodigo: EditText
     private lateinit var imgProduto: ImageView
+    private lateinit var imgProdutoGlow: ImageView
 
     private var acessoLiberado = false
     private var sessaoPronta = false
@@ -117,6 +119,7 @@ class MainActivity : AppCompatActivity() {
         txtValidade = findViewById(R.id.txtValidade)
         edtCodigo = findViewById(R.id.edtCodigo)
         imgProduto = findViewById(R.id.imgProduto)
+        imgProdutoGlow = findViewById(R.id.imgProdutoGlow)
 
         findViewById<FloatingActionButton>(R.id.btnScan).setOnClickListener {
             startActivityForResult(Intent(this, ScannerActivity::class.java), 100)
@@ -647,6 +650,8 @@ class MainActivity : AppCompatActivity() {
         imageRequestToken += 1
         if (!::imgProduto.isInitialized) return
         runCatching { Glide.with(this).clear(imgProduto) }
+        if (::imgProdutoGlow.isInitialized) runCatching { Glide.with(this).clear(imgProdutoGlow) }
+        if (::imgProdutoGlow.isInitialized) imgProdutoGlow.setImageResource(R.drawable.ic_placeholder_box)
         imgProduto.setImageResource(R.drawable.ic_placeholder_box)
     }
 
@@ -705,6 +710,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun mostrarImagemUrl(url: String) {
         if (!::imgProduto.isInitialized || url.isBlank()) return
+        if (::imgProdutoGlow.isInitialized) {
+            Glide.with(this)
+                .load(url)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .transform(BlurTransformation(24, 3))
+                .into(imgProdutoGlow)
+        }
         Glide.with(this)
             .load(url)
             .diskCacheStrategy(DiskCacheStrategy.ALL)
