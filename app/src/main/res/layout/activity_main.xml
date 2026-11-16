@@ -41,7 +41,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:text="A conectar ao Cartaz Fácil..."
+                android:text="A ligar ao serviço..."
                 android:textColor="#9AA4BF"
                 android:textSize="14sp" />
 
@@ -108,7 +108,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Preço consultado no Cartaz Fácil"
+                    android:text="Preço encontrado"
                     android:textColor="#D1FAE5"
                     android:textSize="12sp" />
             </LinearLayout>

@@ -1,32 +1,34 @@
 # Consulta Preço
 
-Aplicativo Android para consultar produtos e preços do Cartaz Fácil. A tela foi refeita com base no estilo visual do app ComparaPreço, mas mostra apenas os dados de preço do Cartaz Fácil.
+Aplicativo Android para pesquisar produtos por nome ou código de barras, consultar preços, procurar imagens e guardar localmente os produtos já encontrados para acelerar pesquisas futuras.
 
-## O que o app faz
+## Funcionalidades
 
-A pesquisa pode ser iniciada digitando o nome ou código, tocando no microfone para falar em português do Brasil ou lendo o código de barras com a câmera. O app envia a consulta ao Cartaz Fácil e mostra o nome do produto, o código e o preço encontrado. O conteúdo do site é carregado num WebView interno e não aparece na tela principal.
+- Pesquisa por texto ou voz em português.
+- Leitura de código de barras com sinal sonoro.
+- Consulta de preço e dados do produto.
+- Procura de imagem por código ou nome, com cache para pesquisas futuras.
+- Desbloqueio local na primeira utilização.
+- Reconexão automática do serviço de consulta.
 
-Depois de uma leitura válida, o app toca um bip de confirmação. A foto é procurada pelo EAN na BeepScan e, se não estiver disponível, no Open Food Facts. A imagem depende de o produto existir nesses catálogos e de haver ligação à internet; se não houver foto, permanece o desenho de substituição.
-Se o Cartaz Fácil devolver apenas um código interno em vez do EAN, o app tenta localizar a imagem pelo nome do produto no Open Food Facts. Como as fotos são fornecidas por catálogos externos, alguns produtos ainda podem não ter imagem disponível.
+As imagens dependem da disponibilidade do produto em catálogos externos e de uma ligação à internet. Se não for encontrada uma foto, é apresentada uma imagem de substituição. A cache de produtos começa vazia e é preenchida durante a utilização.
 
-Na primeira abertura após instalar, o app pede uma senha de acesso local. Depois da validação, registra o desbloqueio no aparelho e não pergunta novamente, a menos que os dados do app sejam apagados ou que ele seja reinstalado.
+## Primeira utilização
 
-## Sessão e reconexão
+Na primeira abertura após instalar, o app pede uma senha local. Depois da validação, o desbloqueio é guardado no aparelho e não é pedido novamente, exceto se os dados do app forem apagados ou o app for reinstalado.
 
-As credenciais do Cartaz Fácil são usadas para autenticar automaticamente. Enquanto o app está aberto, ele verifica a sessão a cada 10 segundos. Se outra sessão invalidar o acesso do app, o Consulta Preço tenta entrar de novo sem trocar para a página do site. Como a conta permite apenas uma sessão, essa reconexão pode encerrar a sessão que estiver aberta no computador.
+## Compilar pelo GitHub Actions
 
-O Android pode suspender verificações quando o app fica em segundo plano. Ao voltar para o app, a sessão é verificada imediatamente. O aplicativo não tenta contornar CAPTCHA, bloqueios do site ou desafios de segurança; se o Cartaz Fácil impedir o acesso, será necessário resolver isso com o suporte do serviço.
+O workflow **Actions → Build APK → Run workflow** compila o APK. Configure os segredos de acesso exigidos pelo workflow em **Settings → Secrets and variables → Actions**. O workflow valida que os segredos necessários existem sem imprimir os valores nos logs.
 
-## Configurar e compilar pelo GitHub Actions
-
-O workflow **Actions → Build APK → Run workflow** compila o APK. Antes de executá-lo, configure estes segredos no repositório em **Settings → Secrets and variables → Actions**: `CARTAZ_USERNAME`, `CARTAZ_PASSWORD` e `APP_FIRST_PASSWORD`. O workflow valida se os três existem e não imprime seus valores nos logs.
-
-Após o workflow terminar com sucesso, abra a execução e baixe o artefato **apk-build**. O APK de instalação fica dentro desse artefato. No Android, permita a instalação do arquivo baixado e abra o aplicativo.
+Depois de o workflow terminar com sucesso, abra a execução e descarregue o artefacto **apk-build**. O APK de instalação encontra-se dentro desse artefacto. No Android, autorize a instalação do ficheiro descarregado e abra o app.
 
 ## Segurança
 
-Os segredos não ficam escritos no código-fonte. Porém, como solicitado, o usuário e a senha do Cartaz Fácil são incorporados ao APK compilado para permitir o login automático e podem ser extraídos por alguém que obtenha o arquivo. Restrinja a distribuição do APK e troque os segredos se o arquivo for compartilhado fora do grupo autorizado. A senha local de primeira abertura é incorporada como hash, não em texto simples.
+As credenciais do serviço são incorporadas no APK de acordo com a configuração atual de compilação e podem ser extraídas por alguém que obtenha o ficheiro. Restrinja a distribuição do APK e rode as credenciais se o ficheiro for partilhado fora do grupo autorizado. A senha local de primeira abertura é incorporada como hash.
 
-## Detalhes técnicos
+O app não tenta contornar CAPTCHA, bloqueios ou desafios de segurança. O Android também pode suspender verificações quando o app está em segundo plano; a sessão é verificada novamente quando o app regressa ao primeiro plano.
 
-O fluxo de busca usa os elementos `#btnBusca` e `#pesq_prod` do módulo Cartaz Unitário e lê o preço nas opções de `#select_valores`. O scanner usa a atividade Android existente e o reconhecimento de voz usa o serviço de fala disponível no aparelho. O projeto requer Android 7.0 ou superior.
+## Requisitos
+
+Android 7.0 ou superior.

@@ -145,7 +145,7 @@ class MainActivity : AppCompatActivity() {
             .getBoolean(PREF_FIRST_UNLOCK_DONE, false)
         if (jaDesbloqueado) {
             acessoLiberado = true
-            iniciarSessaoCartazFacil()
+            iniciarSessaoServico()
         } else {
             solicitarSenhaInicial()
         }
@@ -210,7 +210,7 @@ class MainActivity : AppCompatActivity() {
                         .apply()
                     acessoLiberado = true
                     dialogo.dismiss()
-                    iniciarSessaoCartazFacil()
+                    iniciarSessaoServico()
                 } else {
                     campoSenha.error = "Senha incorreta"
                     campoSenha.text?.clear()
@@ -225,9 +225,9 @@ class MainActivity : AppCompatActivity() {
         return bytes.joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
     }
 
-    private fun iniciarSessaoCartazFacil() {
+    private fun iniciarSessaoServico() {
         if (BuildConfig.CARTAZ_USERNAME.isBlank() || BuildConfig.CARTAZ_PASSWORD.isBlank()) {
-            txtStatus.text = "Configuração do Cartaz Fácil incompleta"
+            txtStatus.text = "Configuração do serviço indisponível"
             return
         }
 
@@ -261,7 +261,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        txtStatus.text = "A conectar ao Cartaz Fácil..."
+        txtStatus.text = "A ligar ao serviço..."
         carregarConsultaUnitario()
         mainHandler.removeCallbacks(sessionWatchdog)
         mainHandler.postDelayed(sessionWatchdog, SESSION_CHECK_INTERVAL_MS)
@@ -319,13 +319,13 @@ class MainActivity : AppCompatActivity() {
             if (loginEmAndamento) {
                 loginEmAndamento = false
                 if (tentativasLogin >= MAX_LOGIN_ATTEMPTS) {
-                    txtStatus.text = "Não foi possível entrar no Cartaz Fácil"
+                    txtStatus.text = "Não foi possível iniciar sessão"
                     agendarReconexao(30_000L)
                 } else {
                     agendarReconexao(1_500L)
                 }
             } else if (body.contains("inválid") || body.contains("incorret")) {
-                txtStatus.text = "O Cartaz Fácil não aceitou o login"
+                txtStatus.text = "Não foi possível validar o acesso"
             } else {
                 enviarLoginAutomatico()
             }
@@ -344,7 +344,7 @@ class MainActivity : AppCompatActivity() {
             bloqueioDoSite = false
             tentativasLogin = 0
             atrasoReconexaoMs = 1_000L
-            txtStatus.text = "Conectado ao Cartaz Fácil"
+            txtStatus.text = "Pronto para pesquisar"
             consultaPendente?.let { enviarConsultaAoSite(it, idConsultaAtual) }
             return
         }
@@ -360,7 +360,7 @@ class MainActivity : AppCompatActivity() {
     private fun enviarLoginAutomatico() {
         if (bloqueioDoSite || !::webViewSession.isInitialized) return
         if (tentativasLogin >= MAX_LOGIN_ATTEMPTS) {
-            txtStatus.text = "Aguardando para reconectar ao Cartaz Fácil..."
+            txtStatus.text = "A restabelecer ligação..."
             agendarReconexao(30_000L)
             return
         }
@@ -390,7 +390,7 @@ class MainActivity : AppCompatActivity() {
         webViewSession.evaluateJavascript(script) { result ->
             if (result == null || result.contains("form_missing")) {
                 loginEmAndamento = false
-                txtStatus.text = "Não foi possível abrir o login do Cartaz Fácil"
+                txtStatus.text = "Não foi possível iniciar sessão"
                 agendarReconexao()
             }
         }
@@ -430,7 +430,7 @@ class MainActivity : AppCompatActivity() {
                 "ok" -> atrasoReconexaoMs = 1_000L
                 "expired", "unknown" -> {
                     sessaoPronta = false
-                    txtStatus.text = "Reconectando ao Cartaz Fácil..."
+                    txtStatus.text = "A restabelecer ligação..."
                     reconexaoAgendada = false
                     carregarConsultaUnitario()
                 }
