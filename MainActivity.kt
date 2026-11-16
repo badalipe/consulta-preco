@@ -33,6 +33,7 @@ import org.json.JSONObject
 import org.jsoup.Jsoup
 import java.security.MessageDigest
 import java.util.Locale
+import java.text.Normalizer
 import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
@@ -90,7 +91,14 @@ class MainActivity : AppCompatActivity() {
                 ?.trim()
 
             if (!texto.isNullOrBlank()) {
-                pesquisarProduto(texto)
+                val consultaLimpa = limparFraseVoz(texto)
+                if (consultaLimpa.isNotBlank()) {
+                    esconderTeclado()
+                    edtCodigo.clearFocus()
+                    pesquisarProduto(consultaLimpa)
+                } else {
+                    Toast.makeText(this, "Diga o nome do produto que pretende pesquisar.", Toast.LENGTH_SHORT).show()
+                }
             } else {
                 Toast.makeText(this, "Não foi possível reconhecer a fala. Tente novamente.", Toast.LENGTH_SHORT).show()
             }
@@ -482,6 +490,54 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun limparFraseVoz(frase: String): String {
+        val palavras = frase.trim().trim { it.isWhitespace() || it in ".,!?;:" }
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+        if (palavras.isEmpty()) return ""
+
+        val prefixos = listOf(
+            "quero saber qual e o preco de", "quero saber qual o preco de", "quero saber o preco de",
+            "gostaria de saber o preco de", "me diga o preco de", "me mostra o preco de",
+            "me mostre o preco de", "me fala o preco de", "me fale o preco de", "me diz o preco de",
+            "me da o preco de", "quero saber o preco", "quero saber o valor", "quero o preco de",
+            "quero o valor de", "quero o preco", "quero o valor",
+            "qual e o preco de", "qual o preco de", "qual e o valor de", "qual o valor de",
+            "quanto custa", "quanto esta", "quanto ta", "quanto e", "qual o preco", "qual o valor",
+            "qual preco", "qual valor", "qual e preco", "qual e valor",
+            "me diga", "me mostra", "me mostre", "me fala", "me fale", "me diz", "me da",
+            "quero saber", "preco do", "preco da", "preco de", "preco", "valor do", "valor da",
+            "valor de", "valor", "pesquise", "pesquisar", "pesquisa",
+            "buscar", "busque", "procure", "procurar", "encontre"
+        ).map { prefixo -> prefixo.split(" ").map(::normalizarPalavraVoz) }
+            .sortedByDescending { it.size }
+
+        val artigosEConectores = setOf("o", "a", "os", "as", "um", "uma", "de", "do", "da", "dos", "das")
+        var inicio = 0
+        while (inicio < palavras.size) {
+            val restantes = palavras.drop(inicio).map(::normalizarPalavraVoz)
+            val prefixo = prefixos.firstOrNull { candidatos ->
+                restantes.size >= candidatos.size && restantes.take(candidatos.size) == candidatos
+            }
+            if (prefixo != null) {
+                inicio += prefixo.size
+            } else if (restantes.firstOrNull()?.let { it in artigosEConectores } == true) {
+                inicio += 1
+            } else {
+                break
+            }
+        }
+
+        return palavras.drop(inicio).joinToString(" ")
+            .trim { it.isWhitespace() || it in ".,!?;:" }
+            .replace(Regex("\\s+"), " ")
+    }
+
+    private fun normalizarPalavraVoz(palavra: String): String =
+        Normalizer.normalize(palavra, Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")
+            .lowercase(Locale.ROOT)
+
     private fun pesquisarProduto(consulta: String) {
         val termo = consulta.trim()
         if (termo.isEmpty()) return
@@ -500,6 +556,8 @@ class MainActivity : AppCompatActivity() {
         limparImagemProduto()
         edtCodigo.setText(termo)
         edtCodigo.setSelection(termo.length)
+        esconderTeclado()
+        edtCodigo.clearFocus()
         txtNome.text = "Pesquisando: $termo"
         txtCodigo.text = "Consulta: $termo"
         txtPreco.text = "R$ —"
@@ -537,6 +595,8 @@ class MainActivity : AppCompatActivity() {
                 var campo = document.querySelector('#btnBusca');
                 var botao = document.querySelector('#pesq_prod');
                 if (!campo || !botao) return 'not_ready';
+                campo.setAttribute('type', 'text');
+                campo.removeAttribute('inputmode');
                 campo.value = $termoJs;
                 campo.dispatchEvent(new Event('input', {bubbles:true}));
                 campo.dispatchEvent(new Event('change', {bubbles:true}));
@@ -566,25 +626,47 @@ class MainActivity : AppCompatActivity() {
                 var area = document.querySelector('#lado_direito');
                 if (!area) return {ready:false, hasProduct:false, name:'', code:'', price:'', family:''};
                 var rows = Array.from(area.querySelectorAll('tr')).map(function(row) {
-                    return Array.from(row.querySelectorAll('td')).map(function(cell) {
+                    return Array.from(row.querySelectorAll('td,th')).map(function(cell) {
                         return (cell.innerText || '').trim();
-                    });
+                    }).filter(function(text) { return text.length > 0; });
                 });
+                function isDescription(value) {
+                    var text = (value || '').trim();
+                    if (text.length < 3 || !/[A-Za-zÀ-ÿ]/.test(text)) return false;
+                    if (/^(familia|pre[cç]o|valor|c[oó]digo|ean)\s*:/i.test(text)) return false;
+                    if (/^(?:R\$\s*)?[\d.,]+$/.test(text)) return false;
+                    if (/^\d+(?:[,.]\d+)?\s?(?:kg|g|ml|l)$/i.test(text)) return false;
+                    return true;
+                }
                 var product = rows.find(function(cells) {
-                    return cells.length >= 2 && /^\d+$/.test(cells[0]) && cells[1].length > 2;
+                    return cells.some(function(text) { return /^\d+$/.test(text); }) &&
+                        cells.some(isDescription);
                 });
+                var code = product
+                    ? (product.find(function(text) { return /^\d+$/.test(text); }) || '')
+                    : '';
+                var semanticName = Array.from(area.querySelectorAll(
+                    'h1,h2,h3,[id*="nome"],[class*="nome"],[id*="descricao"],[class*="descricao"]'
+                )).map(function(element) { return (element.innerText || '').trim(); })
+                    .find(isDescription) || '';
+                var cellName = product
+                    ? (product.find(function(text) { return text !== code && isDescription(text); }) || '')
+                    : '';
+                var description = semanticName || cellName;
                 var options = Array.from(document.querySelectorAll('#select_valores option'))
                     .map(function(option) { return (option.textContent || '').trim(); });
                 var priceText = options.find(function(text) { return /Valores\s*:/i.test(text); }) || '';
-                var match = priceText.match(/Valores\s*:\s*(?:R\$\s*)?([\d.]+,\d{2})/i);
-                var description = product ? product[1] : '';
+                var match = priceText.match(/Valores\s*:\s*(?:R\$\s*)?([\d.]+,[\d]{2})/i);
                 var familyMatch = description.match(/Familia:\s*(.*)$/i);
-                var family = familyMatch ? familyMatch[1].trim() : '';
+                var familyCell = product
+                    ? (product.find(function(text) { return /^Familia\s*:/i.test(text); }) || '')
+                    : '';
+                var family = familyMatch ? familyMatch[1].trim() : familyCell.replace(/^Familia\s*:/i, '').trim();
                 var name = description.replace(/\s*Familia:.*$/i, '').trim();
                 return {
                     ready: true,
                     hasProduct: !!product,
-                    code: product ? product[0] : '',
+                    code: code,
                     name: name,
                     family: family,
                     price: match ? match[1] : ''
@@ -621,7 +703,12 @@ class MainActivity : AppCompatActivity() {
                 return@evaluateJavascript
             }
 
-            val nome = data.optString("name").ifBlank { termo }
+            val ean = normalizarEan(edtCodigo.text.toString())
+            val nomeEmCache = ean?.let { productCache.find(it)?.name }.orEmpty()
+            val nome = data.optString("name").trim()
+                .ifBlank { nomeEmCache }
+                .ifBlank { externalProductNameForCurrentBarcode.orEmpty() }
+                .ifBlank { "Descrição não disponível" }
             val codigo = data.optString("code").ifBlank { termo }
             val preco = data.optString("price")
             val familia = data.optString("family")
@@ -633,7 +720,6 @@ class MainActivity : AppCompatActivity() {
             txtPeso.text = Regex("\\b\\d+(?:[,.]\\d+)?\\s?(?:kg|g|ml|l)\\b", RegexOption.IGNORE_CASE)
                 .find(nome)?.value ?: "—"
             txtValidade.text = "—"
-            val ean = normalizarEan(edtCodigo.text.toString())
             if (ean != null) productCache.saveProduct(ean, codigo, nome, familia)
             val imagemEmCache = ean?.let { productCache.find(it)?.imageUrl }.orEmpty()
             if (imagemEmCache.isNotBlank()) {
@@ -681,6 +767,12 @@ class MainActivity : AppCompatActivity() {
                 mainHandler.post {
                     if (searchId != idConsultaAtual || barcodeForCurrentSearch != barcode) return@post
                     externalProductNameForCurrentBarcode = nomeExterno
+                    val nomeVisivel = txtNome.text.toString()
+                    if (productFoundForCurrentSearch &&
+                        (nomeVisivel == edtCodigo.text.toString() || nomeVisivel == "Descrição não disponível")
+                    ) {
+                        txtNome.text = nomeExterno
+                    }
                     if (barcodeLookupFailed && !productFoundForCurrentSearch) {
                         tentarPesquisaPorNome(searchId)
                     }
