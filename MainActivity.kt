@@ -58,6 +58,7 @@ class MainActivity : AppCompatActivity() {
     private var fallbackAttemptedForCurrentSearch = false
 
     private data class ExternalProductInfo(val name: String, val imageUrl: String?)
+    private data class ProdutoOpcao(val codigo: String, val nome: String, val familia: String)
 
     private lateinit var webViewSession: WebView
     private lateinit var txtStatus: TextView
@@ -135,6 +136,16 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<ImageButton>(R.id.btnBuscaVoz).setOnClickListener {
             iniciarBuscaPorVoz()
+        }
+
+        findViewById<ImageButton>(R.id.btnBuscaTexto).setOnClickListener {
+            val consulta = edtCodigo.text.toString().trim()
+            if (consulta.isNotEmpty()) {
+                esconderTeclado()
+                pesquisarProduto(consulta)
+            } else {
+                Toast.makeText(this, "Digite o nome ou código do produto.", Toast.LENGTH_SHORT).show()
+            }
         }
 
         edtCodigo.setOnEditorActionListener { _, actionId, _ ->
@@ -501,7 +512,7 @@ class MainActivity : AppCompatActivity() {
             "gostaria de saber o preco de", "me diga o preco de", "me mostra o preco de",
             "me mostre o preco de", "me fala o preco de", "me fale o preco de", "me diz o preco de",
             "me da o preco de", "quero saber o preco", "quero saber o valor", "quero o preco de",
-            "quero o valor de", "quero o preco", "quero o valor",
+            "quero o valor de", "quero o preco", "quero o valor", "qual e o preco", "qual e o valor",
             "qual e o preco de", "qual o preco de", "qual e o valor de", "qual o valor de",
             "quanto custa", "quanto esta", "quanto ta", "quanto e", "qual o preco", "qual o valor",
             "qual preco", "qual valor", "qual e preco", "qual e valor",
@@ -538,9 +549,10 @@ class MainActivity : AppCompatActivity() {
             .replace(Regex("\\p{Mn}+"), "")
             .lowercase(Locale.ROOT)
 
-    private fun pesquisarProduto(consulta: String) {
+    private fun pesquisarProduto(consulta: String, textoExibido: String = consulta) {
         val termo = consulta.trim()
         if (termo.isEmpty()) return
+        val rotulo = textoExibido.trim().ifBlank { termo }
 
         idConsultaAtual += 1
         val idConsulta = idConsultaAtual
@@ -554,12 +566,12 @@ class MainActivity : AppCompatActivity() {
         fallbackAttemptedForCurrentSearch = false
 
         limparImagemProduto()
-        edtCodigo.setText(termo)
-        edtCodigo.setSelection(termo.length)
+        edtCodigo.setText(rotulo)
+        edtCodigo.setSelection(rotulo.length)
         esconderTeclado()
         edtCodigo.clearFocus()
-        txtNome.text = "Pesquisando: $termo"
-        txtCodigo.text = "Consulta: $termo"
+        txtNome.text = "Pesquisando: $rotulo"
+        txtCodigo.text = "Consulta: $rotulo"
         txtPreco.text = "R$ —"
         txtStatus.text = if (sessaoPronta) "Consultando preço..." else "Reconectando sessão..."
 
@@ -618,13 +630,39 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun lerResultadoDaBusca(termo: String, idConsulta: Int, tentativa: Int) {
+    private fun lerResultadoDaBusca(
+        termo: String,
+        idConsulta: Int,
+        tentativa: Int,
+        paginaEsperada: Int? = null
+    ) {
         if (idConsulta != idConsultaAtual || !::webViewSession.isInitialized) return
 
         val script = """
             (function() {
                 var area = document.querySelector('#lado_direito');
                 if (!area) return {ready:false, hasProduct:false, name:'', code:'', price:'', family:''};
+                var products = Array.from(area.querySelectorAll('tr.trValor')).map(function(row) {
+                    var codeNode = row.querySelector('td.clsTrValor b.text-success') || row.querySelector('b.text-success');
+                    var descriptionNode = row.querySelector('small[class*="descRetornoProd"]') || row.querySelector('small[title]');
+                    var code = codeNode ? (codeNode.innerText || codeNode.textContent || '').trim() : '';
+                    var rawName = descriptionNode
+                        ? ((descriptionNode.getAttribute('title') || descriptionNode.innerText || descriptionNode.textContent || '').trim())
+                        : '';
+                    var familyMatch = rawName.match(/\s*-\s*Familia:\s*(.*)$/i);
+                    var family = familyMatch ? familyMatch[1].trim() : '';
+                    var name = rawName.replace(/\s*-\s*Familia:.*$/i, '').trim();
+                    return {code:code, name:name, family:family};
+                }).filter(function(item) { return /^\d+$/.test(item.code) && item.name.length >= 3; });
+                var activePageElement = area.querySelector('#retorno .pagination li.active a, .pagination li.active .page-link, .pagination li.active a');
+                var currentPage = activePageElement ? parseInt((activePageElement.innerText || activePageElement.textContent || '').trim(), 10) : 1;
+                if (!currentPage || currentPage < 1) currentPage = 1;
+                var pageLinks = Array.from(area.querySelectorAll('#retorno .pagination a[onclick*="paginacao"], .pagination a[onclick*="paginacao"]'));
+                var pageNumbers = pageLinks.map(function(link) {
+                    var matchPage = (link.getAttribute('onclick') || '').match(/paginacao\s*\(\s*(\d+)/i);
+                    return matchPage ? parseInt(matchPage[1], 10) : 0;
+                });
+                var totalPages = Math.max.apply(Math, [1].concat(pageNumbers));
                 var rows = Array.from(area.querySelectorAll('tr')).map(function(row) {
                     return Array.from(row.querySelectorAll('td,th')).map(function(cell) {
                         return (cell.innerText || '').trim();
@@ -642,7 +680,8 @@ class MainActivity : AppCompatActivity() {
                     return cells.some(function(text) { return /^\d+$/.test(text); }) &&
                         cells.some(isDescription);
                 });
-                var code = product
+                var firstOption = products.length ? products[0] : null;
+                var code = firstOption ? firstOption.code : product
                     ? (product.find(function(text) { return /^\d+$/.test(text); }) || '')
                     : '';
                 var semanticName = Array.from(area.querySelectorAll(
@@ -652,7 +691,7 @@ class MainActivity : AppCompatActivity() {
                 var cellName = product
                     ? (product.find(function(text) { return text !== code && isDescription(text); }) || '')
                     : '';
-                var description = semanticName || cellName;
+                var description = firstOption ? firstOption.name : (semanticName || cellName);
                 var options = Array.from(document.querySelectorAll('#select_valores option'))
                     .map(function(option) { return (option.textContent || '').trim(); });
                 var priceText = options.find(function(text) { return /Valores\s*:/i.test(text); }) || '';
@@ -661,15 +700,18 @@ class MainActivity : AppCompatActivity() {
                 var familyCell = product
                     ? (product.find(function(text) { return /^Familia\s*:/i.test(text); }) || '')
                     : '';
-                var family = familyMatch ? familyMatch[1].trim() : familyCell.replace(/^Familia\s*:/i, '').trim();
-                var name = description.replace(/\s*Familia:.*$/i, '').trim();
+                var family = (firstOption && firstOption.family) || (familyMatch ? familyMatch[1].trim() : familyCell.replace(/^Familia\s*:/i, '').trim());
+                var name = description.replace(/Familia:.*$/i, '').trim();
                 return {
                     ready: true,
-                    hasProduct: !!product,
+                    hasProduct: !!product || products.length > 0,
                     code: code,
                     name: name,
                     family: family,
-                    price: match ? match[1] : ''
+                    price: match ? match[1] : '',
+                    products: products,
+                    currentPage: currentPage,
+                    totalPages: totalPages
                 };
             })()
         """.trimIndent()
@@ -677,11 +719,46 @@ class MainActivity : AppCompatActivity() {
         webViewSession.evaluateJavascript(script) { raw ->
             if (idConsulta != idConsultaAtual) return@evaluateJavascript
             val data = runCatching { JSONObject(raw ?: "{}") }.getOrNull()
-            if (data == null || !data.optBoolean("ready") ||
-                (data.optBoolean("hasProduct") && data.optString("price").isBlank())
-            ) {
+            if (data == null || !data.optBoolean("ready")) {
                 if (tentativa < 8) {
-                    mainHandler.postDelayed({ lerResultadoDaBusca(termo, idConsulta, tentativa + 1) }, 500L)
+                    mainHandler.postDelayed({ lerResultadoDaBusca(termo, idConsulta, tentativa + 1, paginaEsperada) }, 500L)
+                } else {
+                    txtStatus.text = "Não foi possível ler o preço; tentando novamente"
+                    verificarSessaoNoServidor()
+                }
+                return@evaluateJavascript
+            }
+
+            val opcoes = extrairOpcoesProduto(data)
+            val paginaAtual = data.optInt("currentPage", 1).coerceAtLeast(1)
+            val totalPaginas = data.optInt("totalPages", 1).coerceAtLeast(1)
+            if (paginaEsperada != null && paginaAtual != paginaEsperada) {
+                if (tentativa < 20) {
+                    mainHandler.postDelayed({ lerResultadoDaBusca(termo, idConsulta, tentativa + 1, paginaEsperada) }, 400L)
+                } else {
+                    txtStatus.text = "Não foi possível carregar mais opções. Tente novamente."
+                }
+                return@evaluateJavascript
+            }
+
+            val buscaTexto = normalizarEan(termo) == null && !termo.all { it.isDigit() }
+            if (buscaTexto && opcoes.size > 1) {
+                txtNome.text = "${opcoes.size} opções encontradas"
+                txtCodigo.text = "Pesquisa: $termo"
+                txtPreco.text = "R$ —"
+                txtStatus.text = "Escolha o produto correto para consultar o preço"
+                mostrarOpcoesProduto(termo, opcoes, paginaAtual, totalPaginas, idConsulta)
+                return@evaluateJavascript
+            }
+
+            if (buscaTexto && opcoes.size == 1 && data.optString("price").isBlank()) {
+                pesquisarProduto(opcoes[0].codigo, opcoes[0].nome)
+                return@evaluateJavascript
+            }
+
+            if (data.optBoolean("hasProduct") && data.optString("price").isBlank()) {
+                if (tentativa < 8) {
+                    mainHandler.postDelayed({ lerResultadoDaBusca(termo, idConsulta, tentativa + 1, paginaEsperada) }, 500L)
                 } else {
                     txtStatus.text = "Não foi possível ler o preço; tentando novamente"
                     verificarSessaoNoServidor()
@@ -691,7 +768,7 @@ class MainActivity : AppCompatActivity() {
 
             if (!data.optBoolean("hasProduct")) {
                 if (tentativa < 5) {
-                    mainHandler.postDelayed({ lerResultadoDaBusca(termo, idConsulta, tentativa + 1) }, 500L)
+                    mainHandler.postDelayed({ lerResultadoDaBusca(termo, idConsulta, tentativa + 1, paginaEsperada) }, 500L)
                 } else {
                     barcodeLookupFailed = barcodeForCurrentSearch != null
                     if (tentarPesquisaPorNome(idConsulta)) return@evaluateJavascript
@@ -729,6 +806,78 @@ class MainActivity : AppCompatActivity() {
                 carregarImagemProduto(codigoImagem, nome, ean)
             }
             txtStatus.text = if (preco.isNotBlank()) "Preço atualizado" else "Produto encontrado; preço indisponível"
+        }
+    }
+
+    private fun extrairOpcoesProduto(data: JSONObject): List<ProdutoOpcao> {
+        val produtos = data.optJSONArray("products") ?: return emptyList()
+        return (0 until produtos.length()).mapNotNull { indice ->
+            val produto = produtos.optJSONObject(indice) ?: return@mapNotNull null
+            val codigo = produto.optString("code").trim()
+            val nome = produto.optString("name").trim()
+            if (codigo.isBlank() || nome.isBlank()) null
+            else ProdutoOpcao(codigo, nome, produto.optString("family").trim())
+        }.distinctBy { it.codigo }
+    }
+
+    private fun mostrarOpcoesProduto(
+        consulta: String,
+        opcoes: List<ProdutoOpcao>,
+        paginaAtual: Int,
+        totalPaginas: Int,
+        idConsulta: Int
+    ) {
+        if (opcoes.isEmpty() || idConsulta != idConsultaAtual) return
+        val rotulos = opcoes.map { "${it.nome} · cód. ${it.codigo}" }.toTypedArray()
+        val titulo = if (totalPaginas > 1) {
+            "Escolha o produto (${paginaAtual}/$totalPaginas)"
+        } else {
+            "Escolha o produto"
+        }
+        val dialogo = AlertDialog.Builder(this)
+            .setTitle(titulo)
+            .setItems(rotulos) { _, indice ->
+                if (idConsulta != idConsultaAtual) return@setItems
+                val escolhido = opcoes[indice]
+                pesquisarProduto(escolhido.codigo, escolhido.nome)
+            }
+            .setNegativeButton("Cancelar", null)
+
+        if (paginaAtual < totalPaginas) {
+            dialogo.setNeutralButton("Mais opções") { _, _ ->
+                carregarPaginaBusca(consulta, paginaAtual + 1, totalPaginas, idConsulta)
+            }
+        }
+        dialogo.show()
+    }
+
+    private fun carregarPaginaBusca(
+        consulta: String,
+        pagina: Int,
+        totalPaginas: Int,
+        idConsulta: Int,
+        tentativa: Int = 0
+    ) {
+        if (idConsulta != idConsultaAtual || !::webViewSession.isInitialized || pagina > totalPaginas) return
+        txtStatus.text = "Carregando mais opções..."
+        val script = """
+            (function() {
+                if (typeof paginacao !== 'function') return 'not_ready';
+                paginacao($pagina);
+                return 'sent';
+            })()
+        """.trimIndent()
+        webViewSession.evaluateJavascript(script) { result ->
+            if (idConsulta != idConsultaAtual) return@evaluateJavascript
+            if (result?.contains("not_ready") == true) {
+                if (tentativa < 5) {
+                    mainHandler.postDelayed({ carregarPaginaBusca(consulta, pagina, totalPaginas, idConsulta, tentativa + 1) }, 400L)
+                } else {
+                    txtStatus.text = "Não foi possível carregar mais opções."
+                }
+            } else {
+                mainHandler.postDelayed({ lerResultadoDaBusca(consulta, idConsulta, 0, pagina) }, 700L)
+            }
         }
     }
 
